@@ -7,7 +7,7 @@ langgraph
 
 # Vector Databases
 chromadb
-langchain-pinecone
+langchain_chroma 
 pinecone-client
 
 # Document Processing

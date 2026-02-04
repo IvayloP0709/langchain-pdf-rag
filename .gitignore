@@ -35,3 +35,6 @@ data/papers/
 
 # md files 
 *.md
+
+# egg
+*.egg-info/
