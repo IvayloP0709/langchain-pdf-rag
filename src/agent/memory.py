@@ -15,7 +15,7 @@ class SimpleMemory:
         self.messages.append(message)
 
         # keep only last n messages 
-        if len(self.message) >= self.max_messages:
+        if len(self.messages) >= self.max_messages:
             self.messages  = self.messages[-self.max_messages:]
     
     def get_messages(self) -> List[BaseMessage]:
@@ -39,7 +39,7 @@ def get_chat_history(session_id: str, connection_string: str = "sqlite:///chat_h
     """
     return SQLChatMessageHistory(
         session_id=session_id,
-        connection_string=connection_string
+        connection=connection_string
     )
 
 # update graph so it uses history 
