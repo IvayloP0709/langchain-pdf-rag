@@ -3,6 +3,7 @@ langchain
 langchain-core
 langchain-community
 langchain-openai
+langchain-huggingface
 langgraph
 
 # Vector Databases
@@ -30,3 +31,6 @@ ruff
 
 # TLS certificates
 certifi
+
+# for local embedding models
+sentence-transformers

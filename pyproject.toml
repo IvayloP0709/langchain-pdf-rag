@@ -23,6 +23,9 @@ dependencies = [
     "pydantic",
     "python-dotenv",
     "sqlalchemy",
+    "langchain-huggingface",
+    "sentence-transformers",
+    "certifi"
 ]
 
 [project.optional-dependencies]

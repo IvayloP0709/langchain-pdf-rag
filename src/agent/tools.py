@@ -24,11 +24,19 @@ def search_documents(query: str) -> str:
     Returns:
         A string containing the retrieved document content
     """
-    if _vectorstore is None:
-        return "Error: vectorstore not initialized"
+    if not query or not query.strip():
+        return "Error: query is empty. Please provide a valid search query."
     
-    # Retrieve documents 
-    docs = _vectorstore.similarity_search(query, k=5)
+    if _vectorstore is None:
+        return (
+            "Error: vectorstore not initialized. "
+            "Run 'python populate_vectorstore.py', then set_vectorstore(load_vectorstore(...))."
+        )
+    
+    try:
+        docs = _vectorstore.similarity_search(query, k=5)
+    except Exception as e:
+        return f"Error during document search: {e}"
 
     # Format results 
     if not docs:

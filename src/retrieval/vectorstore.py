@@ -3,6 +3,7 @@ from langchain_core.embeddings import Embeddings
 from langchain_core.documents import Document
 from typing import List 
 import os 
+from pathlib import Path
 
 def create_vectorstore(
     documents: List[Document],
@@ -34,6 +35,12 @@ def load_vectorstore(
     persist_directory: str = "./chroma_db"
 ) -> Chroma:
     """Loads an existing vectorstore from disk."""
+    p = Path(persist_directory)
+    if not p.exists() or not any(p.iterdir()):
+        raise FileNotFoundError(
+            f"Vectorstore not found at '{persist_directory}'. Please create it first."
+        )
+    
     return Chroma(
         persist_directory=persist_directory,
         embedding_function=embeddings
