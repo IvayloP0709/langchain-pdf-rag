@@ -1,13 +1,13 @@
 import argparse
-from langchain_core.messages import HumanMessage
+import time
 
-from src.ingestion.embedders import get_embedding_model
-from src.retrieval.vectorstore import load_vectorstore
-from src.agent.tools import set_vectorstore
-from populate_vectorstore import populate_vectorstore
+PROCESS_START = time.perf_counter()
 
 def initialize_vectorstore(persist_directory: str):
     """Load embeddings and vectorstore, then inject it into agent tools."""
+    from src.ingestion.embedders import get_embedding_model
+    from src.retrieval.vectorstore import load_vectorstore
+    from src.agent.tools import set_vectorstore
 
     embeddings = get_embedding_model()
     vectorstore = load_vectorstore(embeddings, persist_directory)
@@ -15,6 +15,7 @@ def initialize_vectorstore(persist_directory: str):
 
 def run_ingest(args: argparse.Namespace) -> int:
     """Run the document ingestion and vectorstore population."""
+    from populate_vectorstore import populate_vectorstore
 
     vectorstore = populate_vectorstore(
         pdf_directory=args.pdf_directory,
@@ -26,21 +27,26 @@ def run_ingest(args: argparse.Namespace) -> int:
 
 def run_ask(args: argparse.Namespace) -> int:
     """ Ask a question to the agent. """
-    from src.agent.graph import create_agent_graph
-
     if not args.question.strip():
         print("ERROR: Question cannot be empty.")
         return 1
-    
+
+    t0 = time.perf_counter()
+    from langchain_core.messages import HumanMessage
+    from src.agent.graph import create_agent_graph
+    t_imports = time.perf_counter()
+
     try:
         initialize_vectorstore(args.persist_directory)
     except FileNotFoundError as exc:
         print(f"ERROR: {exc}")
         print("Run ingestion first: python -m src.main ingest")
-        return 1 
-    
+        return 1
+    t_init = time.perf_counter()
+
     app = create_agent_graph()
-    
+    t_graph = time.perf_counter()
+
     try:
         response = app.invoke(
             {
@@ -56,22 +62,34 @@ def run_ask(args: argparse.Namespace) -> int:
         if "insufficient_quota" in err or "rate limit" in err:
             print("ERROR: OpenAI API quota exceeded or rate limited.")
             print("Check billing/usage at https://platform.openai.com/account/usage.")
-            return 1 
-        
+            return 1
+
         if "api key" in err or "authentication" in err:
             print("ERROR: OpenAI API key issue.")
             print("Make sure OPENAI_API_KEY is set correctly in environment variables.")
             return 1
-        
+
         print(f"ERROR: Failed to generate an answer: {exc}")
-        return 1 
-    
+        return 1
+
+    t_end = time.perf_counter()
+    print(
+        "Timing: "
+        f"pre-ask={t0 - PROCESS_START:.2f}s, "
+        f"imports={t_imports - t0:.2f}s, "
+        f"init={t_init - t_imports:.2f}s, "
+        f"graph={t_graph - t_init:.2f}s, "
+        f"agent={t_end - t_graph:.2f}s, "
+        f"ask-total={t_end - t0:.2f}s"
+    )
+
     print(f"\nAnswer:\n")
     print(response["messages"][-1].content)  # print the last message (agent's response)
     return 0
 
 def run_chat(args: argparse.Namespace) -> int:
     """Chat interactively with the agent."""
+    from langchain_core.messages import HumanMessage
     from src.agent.memory import create_agent_with_memory
 
     try:

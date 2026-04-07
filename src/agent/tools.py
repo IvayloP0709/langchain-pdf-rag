@@ -1,12 +1,13 @@
+from typing import Any
+
 from langchain_core.tools import tool
-from langchain_community.vectorstores import Chroma
-from langchain_core.documents import Document 
-from typing import List 
+
+import os 
 
 # store the vectorstore as a module variable 
-_vectorstore: Chroma = None
+_vectorstore: Any = None
 
-def set_vectorstore(vectorstore: Chroma):
+def set_vectorstore(vectorstore: Any):
     """Set the vectorstore for tools to use."""
     global _vectorstore
     _vectorstore = vectorstore
@@ -33,8 +34,11 @@ def search_documents(query: str) -> str:
             "Run 'python populate_vectorstore.py', then set_vectorstore(load_vectorstore(...))."
         )
     
+    k = int(os.getenv("RETRIEVAL_K", "3"))
+    max_chars = int(os.getenv("DOC_PREVIEW_CHARS", "800"))
+
     try:
-        docs = _vectorstore.similarity_search(query, k=5)
+        docs = _vectorstore.similarity_search(query, k=k)
     except Exception as e:
         return f"Error during document search: {e}"
 
@@ -42,11 +46,15 @@ def search_documents(query: str) -> str:
     if not docs:
         return "No relevant docs found."
     
-    result = f"Found {len(docs)} relevant documents:\n\n"
+    lines = [f"Found {len(docs)} relevant documents:"]
+
     for i, doc in enumerate(docs, 1):
-        result += f"Document {i}:\n{doc.page_content}\n\n"
-    
-    return result
+        text = (doc.page_content or "").strip().replace("\n", " ")
+        if len(text) > max_chars:
+            text = text[:max_chars] + "..."
+        lines.append(f"\nDocument {i}: \n{text}")
+        
+    return "\n".join(lines)
 
 @tool 
 def ask_clarification(question: str) -> str:

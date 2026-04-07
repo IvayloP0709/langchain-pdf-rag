@@ -1,7 +1,4 @@
 from langgraph.graph import StateGraph, END
-from src.agent.state import AgentState
-from src.agent.nodes import planner_node, tool_node, synthesizer_node
-from src.agent.router import should_continue
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,6 +10,10 @@ def create_agent_graph():
     Returns:
         Compiled graph ready to be used.
     """
+    from src.agent.state import AgentState
+    from src.agent.nodes import planner_node, tool_node, synthesizer_node
+    from src.agent.router import should_continue
+
     # create graph
     workflow = StateGraph(AgentState)
 

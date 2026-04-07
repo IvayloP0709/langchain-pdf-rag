@@ -43,8 +43,9 @@ def get_embedding_model() -> Embeddings:
             raise ValueError(
                 "OPENAI_API_KEY not set in environment variables. Please set it to use OpenAI embeddings."
             )
+        model_name = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
         return OpenAIEmbeddings(
-            model='text-embedding-3-small',
+            model=model_name,
             openai_api_key=api_key
         )
 

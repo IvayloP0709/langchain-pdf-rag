@@ -1,17 +1,26 @@
 from dotenv import load_dotenv
 load_dotenv()  # Load .env file before creating LLM
 
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage,  ToolMessage, SystemMessage
 from src.agent.state import AgentState
-from src.agent.tools import search_documents, ask_clarification
 
-# initialize llm
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+_llm = None
+_llm_with_tools = None
 
-# bind tools to llm
-tools = [search_documents, ask_clarification]
-llm_with_tools = llm.bind_tools(tools)
+
+def _get_llm_with_tools():
+    """Create and cache LLM bindings on first use to avoid import-time overhead."""
+    global _llm, _llm_with_tools
+    if _llm_with_tools is not None:
+        return _llm, _llm_with_tools
+
+    from langchain_openai import ChatOpenAI
+    from src.agent.tools import search_documents, ask_clarification
+
+    _llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    _llm_with_tools = _llm.bind_tools([search_documents, ask_clarification])
+    return _llm, _llm_with_tools
+
 
 def planner_node(state:AgentState) -> AgentState:
     """
@@ -19,6 +28,7 @@ def planner_node(state:AgentState) -> AgentState:
 
     The LLM decides whether to search documents, ask for clarification, or answer.
     """
+    _, llm_with_tools = _get_llm_with_tools()
     messages = state["messages"]
 
     # add system message if this is the first message
@@ -57,6 +67,8 @@ def tool_node(state: AgentState) -> AgentState:
     # check if llm wants to use tools 
     if not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
         return state 
+
+    from src.agent.tools import search_documents, ask_clarification
     
     # execute each tool call
     tool_messages = []
@@ -92,6 +104,7 @@ def synthesizer_node(state: AgentState) -> AgentState:
     """
     Node that generates the final answer based on retrieved documents.
     """
+    llm, _ = _get_llm_with_tools()
     messages = state["messages"]
 
     # get retrieved documents from tool results 
