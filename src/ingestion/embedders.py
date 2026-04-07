@@ -1,11 +1,33 @@
+import os
+import warnings
+import logging
+
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.embeddings import Embeddings
-import os
 from dotenv import load_dotenv
 from langchain_huggingface import HuggingFaceEmbeddings
 
 # Load environment variables from .env file
-load_dotenv() 
+load_dotenv()
+
+
+def _configure_hf_runtime() -> None:
+    """Reduce noisy HF/transformers output for normal CLI usage."""
+    quiet = os.getenv("HF_QUIET", "true").strip().lower() in {"1", "true", "yes", "on"}
+    if not quiet:
+        return
+
+    os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+    os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+
+    logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+    logging.getLogger("transformers").setLevel(logging.ERROR)
+    warnings.filterwarnings(
+        "ignore",
+        message=".*unauthenticated requests to the HF Hub.*",
+        category=UserWarning,
+    )
 
 def get_embedding_model() -> Embeddings:
     """
@@ -27,12 +49,17 @@ def get_embedding_model() -> Embeddings:
         )
 
     # default - local embeddings
+    _configure_hf_runtime()
+
     model_name = os.getenv(
         "LOCAL_EMBEDDING_MODEL",
         "sentence-transformers/all-MiniLM-L6-v2"
     )
 
-    return HuggingFaceEmbeddings(model_name=model_name)
+    token = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
+    model_kwargs = {"token": token} if token else {}
+
+    return HuggingFaceEmbeddings(model_name=model_name, model_kwargs=model_kwargs)
 
 # Example - test embeddings 
 if __name__ == "__main__":

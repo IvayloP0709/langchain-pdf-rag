@@ -37,21 +37,27 @@ def populate_vectorstore(
     
     print("Step 1: Loading documents...")
     documents = []
-    
+    pdf_file_count = 0
+    md_file_count = 0
+
     # Load PDFs
     if pdf_path.exists():
+        pdf_file_count = len(list(pdf_path.glob("*.pdf")))
         pdfs = load_pdfs(pdf_directory)
         documents.extend(pdfs)
-        print(f"Loaded {len(pdfs)} PDF documents")
+        print(f"    Found {pdf_file_count} PDF files")
+        print(f"    Loaded {len(pdfs)} PDF pages as LangChain documents")
     else:
         print(f"PDF directory not found: {pdf_path}")
     
     # Load Markdown files if directory provided
     if md_path:
         if md_path.exists():
+            md_file_count = len(list(md_path.glob("*.md")))
             mds = load_markdown(md_directory)
             documents.extend(mds)
-            print(f"Loaded {len(mds)} Markdown documents")
+            print(f"    Found {md_file_count} Markdown files")
+            print(f"    Loaded {len(mds)} Markdown documents")
         else:
             print(f"Markdown directory not found: {md_path}")
     
