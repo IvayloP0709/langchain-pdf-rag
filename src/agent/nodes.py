@@ -1,12 +1,20 @@
 from dotenv import load_dotenv
 load_dotenv()  # Load .env file before creating LLM
 
-from langchain_core.messages import HumanMessage, AIMessage,  ToolMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, SystemMessage
 from src.agent.state import AgentState
 
 _llm = None
 _llm_with_tools = None
 
+
+# helper for the latest human message
+def _latest_human_question(messages):
+    for msg in reversed(messages):
+        if isinstance(msg, HumanMessage):
+            return msg.content
+
+    return "No question found"
 
 def _get_llm_with_tools():
     """Create and cache LLM bindings on first use to avoid import-time overhead."""
@@ -107,14 +115,18 @@ def synthesizer_node(state: AgentState) -> AgentState:
     llm, _ = _get_llm_with_tools()
     messages = state["messages"]
 
-    # get retrieved documents from tool results 
-    documents = []
-    for msg in messages:
-        if isinstance(msg, ToolMessage) and "Document" in msg.content:
-            documents.append(msg.content)
-    
-    # create context from documents 
+    # get retrieved documents from tool results
+    documents = [
+        msg.content
+        for msg in messages
+        if isinstance(msg, ToolMessage) and msg.content
+    ]
+
+    # create context from documents
     context = "\n\n".join(documents) if documents else "No documents retrieved."
+
+    # use the helper function
+    user_question = _latest_human_question(messages)
 
     # generate final answer 
     prompt = f"""Based on the following context, provide a comprehensive answer to the user's question.
@@ -122,7 +134,7 @@ def synthesizer_node(state: AgentState) -> AgentState:
     Context:
     {context}
 
-    User's question: {messages[0].content if messages else "No question found"}
+    User's question: {user_question}
 
     Provide a clear, well-structured answer:
     """

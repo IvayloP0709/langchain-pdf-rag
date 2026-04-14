@@ -1,7 +1,39 @@
 import argparse
 import time
+import os
 
 PROCESS_START = time.perf_counter()
+
+# helper functions 
+
+def build_initial_state(question: str) -> dict:
+    from langchain_core.messages import HumanMessage
+
+    return {
+        "messages": [HumanMessage(content=question)],
+        "documents": [],
+        "current_plan": "",
+        "iteration_count": 0,
+    }
+
+def format_agent_error(exc: Exception) -> str:
+    err = str(exc).lower()
+
+    if "insufficient_quota" in err or "rate limit" in err:
+        return (
+            "ERROR: OpenAI API quota exceeded or rate limited.\n"
+            "Check billing/usage at https://platform.openai.com/account/usage."
+        )
+
+    if "api key" in err or "authentication" in err:
+        return (
+            "ERROR: OpenAI API key issue.\n"
+            "Make sure OPENAI_API_KEY is set correctly in your environment."
+        )
+
+    return f"ERROR: Failed to generate an answer: {exc}"
+
+# initializing vectorstore 
 
 def initialize_vectorstore(persist_directory: str):
     """Load embeddings and vectorstore, then inject it into agent tools."""
@@ -12,6 +44,8 @@ def initialize_vectorstore(persist_directory: str):
     embeddings = get_embedding_model()
     vectorstore = load_vectorstore(embeddings, persist_directory)
     set_vectorstore(vectorstore)
+
+# ingesting documents
 
 def run_ingest(args: argparse.Namespace) -> int:
     """Run the document ingestion and vectorstore population."""
@@ -25,6 +59,8 @@ def run_ingest(args: argparse.Namespace) -> int:
 
     return 0 if vectorstore is not None else 1 
 
+# using the client 
+
 def run_ask(args: argparse.Namespace) -> int:
     """ Ask a question to the agent. """
     if not args.question.strip():
@@ -32,7 +68,6 @@ def run_ask(args: argparse.Namespace) -> int:
         return 1
 
     t0 = time.perf_counter()
-    from langchain_core.messages import HumanMessage
     from src.agent.graph import create_agent_graph
     t_imports = time.perf_counter()
 
@@ -48,40 +83,23 @@ def run_ask(args: argparse.Namespace) -> int:
     t_graph = time.perf_counter()
 
     try:
-        response = app.invoke(
-            {
-                "messages": [HumanMessage(content=args.question)],
-                "documents": [],
-                "current_plan": "",
-                "iteration_count": 0,
-            }
-        )
+        response = app.invoke(build_initial_state(args.question))
     except Exception as exc:
-        err = str(exc).lower()
-
-        if "insufficient_quota" in err or "rate limit" in err:
-            print("ERROR: OpenAI API quota exceeded or rate limited.")
-            print("Check billing/usage at https://platform.openai.com/account/usage.")
-            return 1
-
-        if "api key" in err or "authentication" in err:
-            print("ERROR: OpenAI API key issue.")
-            print("Make sure OPENAI_API_KEY is set correctly in environment variables.")
-            return 1
-
-        print(f"ERROR: Failed to generate an answer: {exc}")
+        print(format_agent_error(exc))
         return 1
 
     t_end = time.perf_counter()
-    print(
-        "Timing: "
-        f"pre-ask={t0 - PROCESS_START:.2f}s, "
-        f"imports={t_imports - t0:.2f}s, "
-        f"init={t_init - t_imports:.2f}s, "
-        f"graph={t_graph - t_init:.2f}s, "
-        f"agent={t_end - t_graph:.2f}s, "
-        f"ask-total={t_end - t0:.2f}s"
-    )
+
+    if os.getenv("CLI_DEBUG_TIMING", "false").strip().lower() in {"1", "true", "yes", "on"}:
+        print(
+            "Timing: "
+            f"pre-ask={t0 - PROCESS_START:.2f}s, "
+            f"imports={t_imports - t0:.2f}s, "
+            f"init={t_init - t_imports:.2f}s, "
+            f"graph={t_graph - t_init:.2f}s, "
+            f"agent={t_end - t_graph:.2f}s, "
+            f"ask-total={t_end - t0:.2f}s"
+        )
 
     print(f"\nAnswer:\n")
     print(response["messages"][-1].content)  # print the last message (agent's response)
@@ -89,7 +107,6 @@ def run_ask(args: argparse.Namespace) -> int:
 
 def run_chat(args: argparse.Namespace) -> int:
     """Chat interactively with the agent."""
-    from langchain_core.messages import HumanMessage
     from src.agent.memory import create_agent_with_memory
 
     try:
@@ -112,16 +129,15 @@ def run_chat(args: argparse.Namespace) -> int:
         if not user_input:
             print("Please enter a question.")
             continue
-
-        result = agent(
-            inputs={
-                "messages": [HumanMessage(content=user_input)],
-                "documents": [],
-                "current_plan": "",
-                "iteration_count": 0,
-            },
-            session_id=args.session_id,
-        )
+    
+        try:
+            result = agent(
+                inputs=build_initial_state(user_input),
+                session_id=args.session_id,
+            )
+        except Exception as exc:
+            print(format_agent_error(exc))
+            continue
 
         print("\nAssistant:")
         print(result["messages"][-1].content)

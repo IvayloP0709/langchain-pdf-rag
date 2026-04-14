@@ -44,7 +44,7 @@ pip install -r requirements-optional.txt
 3. Create `.env` from template and set your OpenAI key.
 
 ```bash
-cp env.example.txt .env
+cp env.example .env
 ```
 
 Required minimum in `.env`:
