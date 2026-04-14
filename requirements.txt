@@ -1,36 +1,10 @@
-# Core LLM Framework
-langchain
+# Core runtime
 langchain-core
 langchain-community
 langchain-openai
-langchain-huggingface
 langgraph
-
-# Vector Databases
+langchain_chroma
 chromadb
-langchain_chroma 
-pinecone-client
-
-# Document Processing
 pypdf
-unstructured
-
-# API & Web
-fastapi
-uvicorn
-pydantic
 python-dotenv
-
-# Database (for persistence)
 sqlalchemy
-
-# Development
-pytest
-black
-ruff
-
-# TLS certificates
-certifi
-
-# for local embedding models
-sentence-transformers

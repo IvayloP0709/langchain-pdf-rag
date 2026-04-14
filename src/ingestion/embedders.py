@@ -5,7 +5,6 @@ import logging
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.embeddings import Embeddings
 from dotenv import load_dotenv
-from langchain_huggingface import HuggingFaceEmbeddings
 
 # Load environment variables from .env file
 load_dotenv()
@@ -33,9 +32,11 @@ def get_embedding_model() -> Embeddings:
     """
     Create an embedding model instance.
 
-    Uses HuggingFaceEmbeddings by default, but can switch to OpenAIEmbeddings if EMBEDDING_PROVIDER=OpenAI in environment variables.
+    Uses OpenAIEmbeddings by default. Local Hugging Face embeddings are
+    available when EMBEDDING_PROVIDER=local and the optional dependency group
+    is installed.
     """
-    provider = os.getenv("EMBEDDING_PROVIDER", "local").strip().lower()
+    provider = os.getenv("EMBEDDING_PROVIDER", "openai").strip().lower()
     
     if provider == "openai":
         api_key = os.getenv("OPENAI_API_KEY")
@@ -59,6 +60,14 @@ def get_embedding_model() -> Embeddings:
 
     token = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
     model_kwargs = {"token": token} if token else {}
+
+    try:
+        from langchain_huggingface import HuggingFaceEmbeddings
+    except ImportError as exc:
+        raise ImportError(
+            "Local embeddings require the optional 'local' dependencies. "
+            "Install them with: pip install -r requirements-optional.txt"
+        ) from exc
 
     return HuggingFaceEmbeddings(model_name=model_name, model_kwargs=model_kwargs)
 

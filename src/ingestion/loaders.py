@@ -1,4 +1,4 @@
-from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader
+from langchain_community.document_loaders import PyPDFLoader
 from pathlib import Path
 from typing import List
 from langchain_core.documents import Document
@@ -29,6 +29,14 @@ def load_pdfs(directory:str) -> List[Document]:
 
 def load_markdown(directory:str) -> List[Document]:
     """Load all Markdown files from a directory."""
+    try:
+        from langchain_community.document_loaders import UnstructuredMarkdownLoader
+    except ImportError as exc:
+        raise ImportError(
+            "Markdown ingestion requires the optional 'markdown' dependencies. "
+            "Install them with: pip install -r requirements-optional.txt"
+        ) from exc
+
     md_path = Path(directory)
     if not md_path.exists():
         print(f"Warning: Markdown directory {md_path} does not exist.")

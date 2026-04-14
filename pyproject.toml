@@ -8,24 +8,15 @@ version = "0.1.0"
 description = "LangChain research assistant project"
 requires-python = ">=3.8"
 dependencies = [
-    "langchain",
     "langchain-core",
     "langchain-community",
     "langchain-openai",
     "langgraph",
     "chromadb",
-    "langchain-pinecone",
-    "pinecone-client",
+    "langchain_chroma",
     "pypdf",
-    "unstructured",
-    "fastapi",
-    "uvicorn",
-    "pydantic",
     "python-dotenv",
     "sqlalchemy",
-    "langchain-huggingface",
-    "sentence-transformers",
-    "certifi"
 ]
 
 [project.optional-dependencies]
@@ -33,6 +24,16 @@ dev = [
     "pytest",
     "black",
     "ruff",
+]
+local = [
+    "langchain-huggingface",
+    "sentence-transformers",
+]
+markdown = [
+    "unstructured",
+]
+tools = [
+    "certifi",
 ]
 
 [tool.setuptools.packages.find]

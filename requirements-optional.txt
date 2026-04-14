@@ -1,0 +1,7 @@
+# Optional extras
+# Install this only if you need local embeddings, Markdown ingestion, or the
+# arXiv downloader's SSL certificate helper.
+langchain-huggingface
+sentence-transformers
+unstructured
+certifi

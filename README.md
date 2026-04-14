@@ -35,6 +35,12 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
+If you want local embeddings or Markdown ingestion, also install the optional extras:
+
+```bash
+pip install -r requirements-optional.txt
+```
+
 3. Create `.env` from template and set your OpenAI key.
 
 ```bash
@@ -228,6 +234,12 @@ In `.env`:
 EMBEDDING_PROVIDER=local
 LOCAL_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
 HF_QUIET=true
+```
+
+Install the optional dependency set first:
+
+```bash
+pip install -r requirements-optional.txt
 ```
 
 Optional for higher Hugging Face rate limits:
