@@ -1,314 +1,298 @@
-# Agent System Documentation
+# langchain-pdf-rag
 
-This directory contains a LangGraph-based agentic RAG system that can search research papers and answer questions using retrieval-augmented generation.
+Research-paper RAG assistant built with LangChain + LangGraph.
 
-## Overview
+The project lets you:
+- download papers from arXiv,
+- ingest PDFs and optional Markdown into Chroma,
+- ask one-off questions from the CLI,
+- run interactive chat with persistent session memory.
 
-The agent uses a **ReAct-style** pattern (Reasoning + Acting) where it:
-1. **Plans** what action to take (search documents, ask for clarification, or answer)
-2. **Executes** tools (searches the vector database)
-3. **Synthesizes** a final answer based on retrieved documents
+## 5-Minute Quickstart
 
-## Architecture
+From repository root:
 
-```
-┌─────────────┐
-│   User      │
-│  Question   │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────────┐
-│  planner_node   │ ◄─── Decides next action
-└────────┬────────┘
-         │
-         ▼
-    ┌─────────┐
-    │ Router  │ ────► Routes to: tools, synthesizer, or end
-    └────┬────┘
-         │
-    ┌────┴────┐
-    │         │
-    ▼         ▼
-┌────────┐ ┌──────────────┐
-│ tools  │ │ synthesizer  │
-│  node  │ │    node      │
-└───┬────┘ └──────┬───────┘
-    │             │
-    └──────┬──────┘
-           │
-           ▼
-        ┌─────┐
-        │ END │
-        └─────┘
+1. Create and activate a virtual environment.
+
+PowerShell:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 ```
 
-## File Structure
+Git Bash:
 
-### Core Files
-
-- **`state.py`**: Defines `AgentState` - the state that flows through the graph
-- **`graph.py`**: Creates and compiles the LangGraph workflow
-- **`nodes.py`**: Contains the three main nodes:
-  - `planner_node`: LLM decides what to do next
-  - `tool_node`: Executes tool calls (searches documents)
-  - `synthesizer_node`: Generates final answer from retrieved documents
-- **`router.py`**: Routing logic that decides which node to go to next
-- **`tools.py`**: Tool definitions (search_documents, ask_clarification)
-- **`memory.py`**: Persistent conversation memory using SQLite
-
-## How It Works
-
-### 1. Initialization (`graph.py`)
-
-```python
-from src.agent.graph import create_agent_graph
-
-app = create_agent_graph()
+```bash
+python -m venv .venv
+source .venv/Scripts/activate
 ```
 
-Creates a LangGraph workflow with:
-- **Entry point**: `planner` node
-- **Nodes**: planner, tools, synthesizer
-- **Edges**: 
-  - planner → (router) → tools/synthesizer/end
-  - tools → planner (always)
-  - synthesizer → end (always)
+2. Install dependencies.
 
-### 2. Running the Agent
-
-```python
-result = app.invoke({
-    "messages": [HumanMessage(content="What are coding agents?")],
-    "documents": [],
-    "current_plan": "",
-    "iteration_count": 0
-})
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
 ```
 
-### 3. Flow Example
+3. Create `.env` from template and set your OpenAI key.
 
-**Step 1: Planner Node**
-- Receives: `HumanMessage("What are coding agents?")`
-- Adds system message (first time only)
-- LLM decides: "I should search for information about coding agents"
-- Returns: `AIMessage(tool_calls=[{"name": "search_documents", ...}])`
-
-**Step 2: Router**
-- Sees: `AIMessage` with `tool_calls`
-- Routes to: `"tools"`
-
-**Step 3: Tool Node**
-- Executes: `search_documents.invoke({"query": "coding agents"})`
-- Searches vectorstore, retrieves 5 documents
-- Returns: `ToolMessage(content="Found 5 relevant documents...")`
-
-**Step 4: Graph Edge**
-- Automatically routes: `tools` → `planner`
-
-**Step 5: Planner Node (2nd call)**
-- Receives: Full conversation history including tool results
-- LLM sees documents, decides to synthesize answer
-- Returns: `AIMessage` (or routes to synthesizer)
-
-**Step 6: Router**
-- Sees: `ToolMessage` as last message
-- Routes to: `"synthesize"`
-
-**Step 7: Synthesizer Node**
-- Extracts documents from `ToolMessage`
-- Creates context prompt
-- Generates final answer using LLM
-- Returns: `AIMessage(content="Coding agents are...")`
-
-**Step 8: Graph Edge**
-- Automatically routes: `synthesizer` → `END`
-
-## State Structure
-
-```python
-AgentState = {
-    "messages": List[BaseMessage],      # Conversation history (appended)
-    "documents": List[Document],        # Retrieved documents (replaced)
-    "current_plan": str,                # LLM's current plan (replaced)
-    "iteration_count": int              # Number of planner iterations (incremented)
-}
+```bash
+cp env.example.txt .env
 ```
 
-**Important**: `messages` uses `Annotated[List[BaseMessage], add]` which means LangGraph automatically appends new messages instead of replacing them.
+Required minimum in `.env`:
 
-## Memory System
-
-### Basic Agent (No Memory)
-
-```python
-from src.agent.graph import create_agent_graph
-
-app = create_agent_graph()
-result = app.invoke({"messages": [HumanMessage("Hello")], ...})
+```env
+OPENAI_API_KEY=sk-...
+EMBEDDING_PROVIDER=openai
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 ```
 
-### Agent with Persistent Memory
+4. Add PDFs to `data/papers` (or download from arXiv):
 
-```python
-from src.agent.memory import create_agent_with_memory
-
-agent = create_agent_with_memory()
-
-# First call
-result1 = agent(
-    inputs={"messages": [HumanMessage("What are coding agents?")]},
-    session_id="user_123"
-)
-
-# Second call - remembers previous conversation
-result2 = agent(
-    inputs={"messages": [HumanMessage("How do they work?")]},
-    session_id="user_123"  # Same session_id = same conversation
-)
+```bash
+python scripts/download_arxiv_pdfs.py \
+    --query "cat:cs.AI AND (all:retrieval OR all:RAG OR all:agents)" \
+    --max-results 20 \
+    --out-dir data/papers \
+    --metadata data/papers/metadata.csv \
+    --skip-existing
 ```
 
-**How memory works:**
-1. Loads past messages from SQLite database (by `session_id`)
-2. Combines past + new messages
-3. Runs agent with full context
-4. Saves new messages to database
+5. Build the vectorstore and ask a question.
 
-## Tools
-
-### `search_documents(query: str) -> str`
-
-Searches the vector database for relevant documents.
-
-**Usage:**
-```python
-from src.agent.tools import search_documents, set_vectorstore
-from src.retrieval.vectorstore import load_vectorstore
-from src.ingestion.embedders import get_embedding_model
-
-# Initialize vectorstore
-embeddings = get_embedding_model()
-vectorstore = load_vectorstore(embeddings)
-set_vectorstore(vectorstore)  # Makes it available to tools
-
-# Now tools can use it
-result = search_documents.invoke({"query": "coding agents"})
+```bash
+python -m src.main ingest
+python -m src.main ask "What is RAG?"
 ```
 
-### `ask_clarification(question: str) -> str`
+6. Start interactive chat.
 
-Asks the user for clarification (rarely used - agent prefers to search first).
-
-## Router Logic
-
-The router (`router.py`) decides the next node based on the last message:
-
-| Last Message Type | Router Decision |
-|-------------------|----------------|
-| `AIMessage` with `tool_calls` | → `"tools"` |
-| `ToolMessage` | → `"synthesize"` |
-| `AIMessage` without `tool_calls` + has ToolMessages | → `"end"` |
-| `iteration_count >= 5` | → `"end"` |
-
-## Example Usage
-
-### Basic Example
-
-```python
-from langchain_core.messages import HumanMessage
-from src.agent.graph import create_agent_graph
-from src.agent.tools import set_vectorstore
-from src.retrieval.vectorstore import load_vectorstore
-from src.ingestion.embedders import get_embedding_model
-
-# Setup
-embeddings = get_embedding_model()
-vectorstore = load_vectorstore(embeddings)
-set_vectorstore(vectorstore)
-
-# Create and run agent
-app = create_agent_graph()
-result = app.invoke({
-    "messages": [HumanMessage(content="What are coding agents?")],
-    "documents": [],
-    "current_plan": "",
-    "iteration_count": 0
-})
-
-print(result["messages"][-1].content)  # Final answer
+```bash
+python -m src.main chat --session-id demo
 ```
 
-### With Memory
+## Current Project Capabilities
 
-```python
-from src.agent.memory import create_agent_with_memory
-from langchain_core.messages import HumanMessage
+- CLI entrypoint with `ingest`, `ask`, and `chat` commands.
+- Configurable embeddings provider:
+    - OpenAI embeddings (`EMBEDDING_PROVIDER=openai`)
+    - Local Hugging Face embeddings (`EMBEDDING_PROVIDER=local`)
+- Retrieval tool with configurable `RETRIEVAL_K` and `DOC_PREVIEW_CHARS`.
+- Persistent chat memory via SQLite session history.
+- arXiv bulk PDF downloader script with metadata CSV export.
 
-agent = create_agent_with_memory()
+## Repository Layout
 
-# First question
-result1 = agent(
-    inputs={"messages": [HumanMessage("What are coding agents?")]},
-    session_id="user_123"
-)
+- `src/main.py`: CLI commands (`ingest`, `ask`, `chat`)
+- `populate_vectorstore.py`: ingestion pipeline entry
+- `src/ingestion/*`: loaders, chunking, embedding model selection
+- `src/retrieval/*`: vectorstore creation/loading and retrieval helpers
+- `src/agent/*`: LangGraph nodes, router, tools, memory
+- `scripts/download_arxiv_pdfs.py`: arXiv query + PDF downloader
+- `data/papers`: local PDF corpus
+- `tests/test_memory.py`: memory persistence regression test
 
-# Follow-up question (agent remembers context)
-result2 = agent(
-    inputs={"messages": [HumanMessage("How do they work?")]},
-    session_id="user_123"
-)
+## Prerequisites
+
+- Python 3.8+
+- pip
+- Internet access for OpenAI/Hugging Face/arXiv usage
+
+## Setup
+
+### 1) Create and activate a virtual environment
+
+Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 ```
+
+Git Bash on Windows:
+
+```bash
+python -m venv .venv
+source .venv/Scripts/activate
+```
+
+macOS/Linux:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 2) Install dependencies
+
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### 3) Configure environment variables
+
+Copy the template and edit values:
+
+```bash
+cp env.example.txt .env
+```
+
+Windows PowerShell alternative:
+
+```powershell
+Copy-Item env.example.txt .env
+```
+
+At minimum, set:
+- `OPENAI_API_KEY`
+- `EMBEDDING_PROVIDER` (`openai` or `local`)
+
+## Download Papers from arXiv
+
+Use the included script to fetch PDFs and metadata into `data/papers`.
+
+Example:
+
+```bash
+python scripts/download_arxiv_pdfs.py \
+    --query "cat:cs.AI AND (all:retrieval OR all:RAG OR all:agents)" \
+    --max-results 30 \
+    --out-dir data/papers \
+    --metadata data/papers/metadata.csv \
+    --skip-existing
+```
+
+Common useful flags:
+- `--query` (repeatable): add multiple topic pulls
+- `--sort-by relevance|lastUpdatedDate|submittedDate`
+- `--sort-order ascending|descending`
+- `--delay-seconds 1.5`: polite throttling between downloads
+- `--cafile <path>`: custom CA bundle
+- `--insecure`: disable SSL verification (troubleshooting only)
+
+## Build the Vector Store
+
+After adding PDFs (and optional Markdown), ingest once:
+
+```bash
+python -m src.main ingest
+```
+
+Optional custom paths:
+
+```bash
+python -m src.main ingest \
+    --pdf-directory data/papers \
+    --md-directory docs \
+    --persist-directory ./chroma_db
+```
+
+## Ask a Single Question
+
+```bash
+python -m src.main ask "What is RAG?"
+```
+
+You will see timing breakdown output:
+- `pre-ask`, `imports`, `init`, `graph`, `agent`, `ask-total`
+
+## Run Interactive Chat
+
+```bash
+python -m src.main chat --session-id my_session
+```
+
+Notes:
+- Type `exit` or `quit` to end chat.
+- Session memory is stored in `chat_history.db` (SQLite).
+
+## Embeddings Configuration
+
+### OpenAI embeddings (recommended for faster startup)
+
+In `.env`:
+
+```env
+EMBEDDING_PROVIDER=openai
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+```
+
+### Local embeddings (no embedding API cost)
+
+In `.env`:
+
+```env
+EMBEDDING_PROVIDER=local
+LOCAL_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+HF_QUIET=true
+```
+
+Optional for higher Hugging Face rate limits:
+
+```env
+HF_TOKEN=hf_...
+```
+
+Important: if you switch embedding providers/models, rebuild `chroma_db`.
+
+## Retrieval Tuning
+
+Adjust in `.env`:
+
+```env
+RETRIEVAL_K=3
+DOC_PREVIEW_CHARS=800
+```
+
+- Lower values reduce prompt size and latency.
+- Higher values may increase context coverage at the cost of speed.
+
+## Run Tests
+
+```bash
+pytest -q
+```
+
+Current test coverage includes persistent memory behavior in `tests/test_memory.py`.
 
 ## Troubleshooting
 
-### "Error: vectorstore not initialized"
+### Error: Vectorstore not found
 
-**Problem**: Tools can't find the vectorstore.
+Run:
 
-**Solution**: Call `set_vectorstore(vectorstore)` before running the agent:
-```python
-from src.agent.tools import set_vectorstore
-set_vectorstore(vectorstore)
+```bash
+python -m src.main ingest
 ```
 
-### Infinite Loop
+### OpenAI quota or authentication errors
 
-**Problem**: Agent keeps looping, never ends.
+Verify:
+- `OPENAI_API_KEY` is valid
+- billing/quota is available
 
-**Solution**: Check router logic - it should detect when a final answer exists and route to `"end"`.
+### Chat appears idle
 
-### Agent Asks for Clarification Instead of Searching
+The first startup can take longer due to initialization. Once prompt appears:
 
-**Problem**: LLM doesn't know it should search first.
+```text
+You:
+```
 
-**Solution**: System message in `planner_node` should instruct it to search first. Check that system message is being added correctly.
+type your question and press Enter.
 
-## Key Concepts
+### SSL issues when downloading arXiv PDFs
 
-### ReAct Pattern
+Try one of:
+- provide `--cafile <path>`
+- install/update `certifi`
+- use `--insecure` only for local troubleshooting
 
-**Reasoning**: LLM thinks about what to do  
-**Acting**: Executes tools (searches documents)  
-**Observing**: Sees tool results  
-**Reasoning again**: Decides next step (answer or search more)
+## Security
 
-### State Management
-
-- **Messages**: Accumulate (append) - full conversation history
-- **Documents**: Replace - current retrieved documents
-- **Current Plan**: Replace - LLM's current thinking
-- **Iteration Count**: Increment - tracks how many planning steps
-
-### Tool Binding
-
-Tools are bound to the LLM using `llm.bind_tools(tools)`. This allows the LLM to:
-- See available tools
-- Decide when to use them
-- Call them with appropriate arguments
-
-## Next Steps
-
-- Add more tools (e.g., web search, code execution)
-- Implement checkpointing for state persistence
-- Add LangSmith tracing for observability
-- Deploy as FastAPI service
+- Never commit `.env`.
+- Rotate keys if they were ever exposed.
+- Keep API keys scoped to least privilege where possible.
