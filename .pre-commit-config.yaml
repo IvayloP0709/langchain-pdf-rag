@@ -1,0 +1,20 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-fix
+        name: ruff-fix
+        entry: .venv/Scripts/python.exe -m ruff check --fix .
+        language: system
+        pass_filenames: false
+
+      - id: ruff-format
+        name: ruff-format
+        entry: .venv/Scripts/python.exe -m ruff format .
+        language: system
+        pass_filenames: false
+
+      - id: black
+        name: black
+        entry: .venv/Scripts/python.exe -m black .
+        language: system
+        pass_filenames: false

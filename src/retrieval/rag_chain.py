@@ -1,19 +1,17 @@
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.retrievers import BaseRetriever
-from langchain_core.documents import Document
 from typing import List
 
-from src.retrieval import vectorstore 
+from langchain_core.documents import Document
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.runnables import RunnablePassthrough
+from langchain_openai import ChatOpenAI
+
 
 def format_docs(docs: List[Document]) -> str:
     """Format retrieved documents into a string for the prompt."""
-    return "\n\n".join(
-    f"Document {i+1}: \n{doc.page_content}"
-    for i,doc in enumerate(docs)
-    )
+    return "\n\n".join(f"Document {i + 1}: \n{doc.page_content}" for i, doc in enumerate(docs))
+
 
 def create_rag_chain(retriever: BaseRetriever, llm: ChatOpenAI):
     """
@@ -22,28 +20,30 @@ def create_rag_chain(retriever: BaseRetriever, llm: ChatOpenAI):
     Args:
         retriever: Retriever instance
         llm: ChatOpenAI instance
-    
+
     Returns:
         Runnable chain
     """
-    prompt = ChatPromptTemplate.from_messages([
-        ("system","""You are a helpful research assistance. Answer question 
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                """You are a helpful research assistance. Answer question
         only based on the provided content.
-        
+
     If the content doesn't contain enough information to answer the question,
     say "I don't have enough information in my docs to answer this question."
 
     Context:
-    {context}"""),
-    ("human", "{question}")
-    ])
+    {context}""",
+            ),
+            ("human", "{question}"),
+        ]
+    )
 
     # Chain - question -> retrieve -> format -> prompt -> llm -> parse
     chain = (
-        {
-            "context": retriever | format_docs,
-            "question": RunnablePassthrough()
-        }
+        {"context": retriever | format_docs, "question": RunnablePassthrough()}
         | prompt
         | llm
         | StrOutputParser()
@@ -51,12 +51,13 @@ def create_rag_chain(retriever: BaseRetriever, llm: ChatOpenAI):
 
     return chain
 
-# Example usage 
+
+# Example usage
 
 if __name__ == "__main__":
+    from src.ingestion.embedders import get_embedding_model
     from src.retrieval.retrievers import create_retriever
     from src.retrieval.vectorstore import load_vectorstore
-    from src.ingestion.embedders import get_embedding_model
 
     embeddings = get_embedding_model()
     vectorstore = load_vectorstore(embeddings)

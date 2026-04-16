@@ -44,7 +44,7 @@ pip install -r requirements-optional.txt
 3. Create `.env` from template and set your OpenAI key.
 
 ```bash
-cp env.example .env
+cp .env.example .env
 ```
 
 Required minimum in `.env`:
@@ -143,13 +143,13 @@ pip install -r requirements.txt
 Copy the template and edit values:
 
 ```bash
-cp env.example.txt .env
+cp .env.example .env
 ```
 
 Windows PowerShell alternative:
 
 ```powershell
-Copy-Item env.example.txt .env
+Copy-Item .env.example .env
 ```
 
 At minimum, set:

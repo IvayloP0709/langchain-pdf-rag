@@ -15,12 +15,12 @@ import csv
 import re
 import ssl
 import time
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List
 from urllib.parse import quote
 from urllib.request import Request, urlopen
-import xml.etree.ElementTree as ET
 
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
 ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
@@ -81,7 +81,9 @@ def parse_feed(xml_text: str) -> List[ArxivPaper]:
             continue
 
         title_text = (entry.findtext("atom:title", default="", namespaces=ATOM_NS) or "").strip()
-        summary_text = (entry.findtext("atom:summary", default="", namespaces=ATOM_NS) or "").strip()
+        summary_text = (
+            entry.findtext("atom:summary", default="", namespaces=ATOM_NS) or ""
+        ).strip()
         published_text = entry.findtext("atom:published", default="", namespaces=ATOM_NS) or ""
         updated_text = entry.findtext("atom:updated", default="", namespaces=ATOM_NS) or ""
 
@@ -131,7 +133,7 @@ def fetch_arxiv_feed(
     sort_order: str,
     ssl_context: ssl.SSLContext,
 ) -> List[ArxivPaper]:
-    encoded_query = quote(query, safe="():\" ")
+    encoded_query = quote(query, safe='():" ')
     encoded_query = encoded_query.replace(" ", "+")
     url = (
         f"{ARXIV_API_URL}?search_query={encoded_query}"
@@ -145,7 +147,9 @@ def fetch_arxiv_feed(
     return parse_feed(xml_bytes.decode("utf-8", errors="replace"))
 
 
-def download_file(url: str, destination: Path, ssl_context: ssl.SSLContext, retries: int = 3) -> None:
+def download_file(
+    url: str, destination: Path, ssl_context: ssl.SSLContext, retries: int = 3
+) -> None:
     request = Request(url, headers={"User-Agent": USER_AGENT})
 
     for attempt in range(1, retries + 1):
@@ -211,7 +215,9 @@ def paper_to_row(paper: ArxivPaper) -> Dict[str, str]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Download arXiv PDFs into data/papers with metadata.")
+    parser = argparse.ArgumentParser(
+        description="Download arXiv PDFs into data/papers with metadata."
+    )
     parser.add_argument(
         "--query",
         action="append",
