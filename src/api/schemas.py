@@ -27,11 +27,16 @@ class AskRequest(BaseModel):
 class AskResponse(BaseModel):
     answer: str
     sources: List[str]
-    timing_ms: int
+    timing_ms: Optional[int] = None
+
+
+class ChatRequest(BaseModel):
+    message: str
+    persist_directory: str = Field(default="./chroma_db")
 
 
 class ChatResponse(BaseModel):
     session_id: str
     answer: str
     sources: List[str]
-    timing_ms: int
+    timing_ms: Optional[int] = None
