@@ -19,6 +19,12 @@ class IngestResponse(BaseModel):
     persist_directory: str
 
 
+class SourceBlock(BaseModel):
+    source: str
+    snippet: str
+    rank: int
+
+
 class AskRequest(BaseModel):
     question: str
     persist_directory: str = Field(default="./chroma_db")
@@ -26,7 +32,7 @@ class AskRequest(BaseModel):
 
 class AskResponse(BaseModel):
     answer: str
-    sources: List[str]
+    sources: List[SourceBlock]
     timing_ms: Optional[int] = None
 
 
@@ -38,5 +44,5 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     session_id: str
     answer: str
-    sources: List[str]
+    sources: List[SourceBlock]
     timing_ms: Optional[int] = None

@@ -50,10 +50,14 @@ def search_documents(query: str) -> str:
     lines = [f"Found {len(docs)} relevant documents:"]
 
     for i, doc in enumerate(docs, 1):
+        source = doc.metadata.get("source", "unknown")
+        page = doc.metadata.get("page", "unknown")
+
         text = (doc.page_content or "").strip().replace("\n", " ")
         if len(text) > max_chars:
             text = text[:max_chars] + "..."
-        lines.append(f"\nDocument {i}: \n{text}")
+
+        lines.append(f"\nDocument {i}: \nSource: {source}\nPage: {page}\nSnippet: {text}")
 
     return "\n".join(lines)
 

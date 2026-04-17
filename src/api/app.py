@@ -1,4 +1,8 @@
+import re
+from typing import List
+
 from fastapi import FastAPI, HTTPException
+from langchain_core.messages import ToolMessage
 
 from populate_vectorstore import populate_vectorstore
 from src.agent.graph import create_agent_graph
@@ -11,6 +15,7 @@ from src.api.schemas import (
     HealthResponse,
     IngestRequest,
     IngestResponse,
+    SourceBlock,
 )
 from src.config import validate_runtime_config
 from src.main import build_initial_state, format_agent_error, initialize_vectorstore
@@ -63,6 +68,43 @@ def _get_memory_agent():
     return _memory_agent
 
 
+def _extract_sources(messages) -> List[SourceBlock]:
+    """
+    Extract source information from the agent's messages.
+    Expected format includes sections like:
+    Document 1:
+    <snippet>
+    """
+    sources: List[SourceBlock] = []
+    pattern = re.compile(r"Document\s+(\d+):\n?(.*?)\s*(?=\nDocument\s+\d+:|\Z)", re.DOTALL)
+
+    for msg in messages or []:
+        if not isinstance(msg, ToolMessage):
+            continue
+
+        content = msg.content if isinstance(msg.content, str) else ""
+        if not content:
+            continue
+
+        for match in pattern.finditer(content):
+            rank = int(match.group(1))
+            block = match.group(2).strip()
+            if not block:
+                continue
+
+            source_match = re.search(r"Source:\s*(.+)", block, flags=re.IGNORECASE)
+            source = source_match.group(1).strip() if source_match else "unknown"
+
+            # remove header lines from snippet
+            snippet = re.sub(r"(?im)^Source:\s*.*$", "", block)
+            snippet = re.sub(r"(?im)^Page:\s*.*$", "", snippet)
+            snippet = re.sub(r"(?im)^Snippet:\s*", "", snippet).strip()
+
+            sources.append(SourceBlock(source=source, snippet=snippet[:800], rank=rank))
+
+    return sources
+
+
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     """Health check endpoint."""
@@ -111,10 +153,11 @@ def ask(payload: AskRequest) -> AskResponse:
         raise HTTPException(status_code=502, detail=format_agent_error(exc)) from exc
 
     answer = result["messages"][-1].content if result.get("messages") else ""
+    sources = _extract_sources(result.get("messages", []))
 
     return AskResponse(
         answer=answer,
-        sources=[],
+        sources=sources,
     )
 
 
@@ -139,8 +182,10 @@ def chat(session_id: str, payload: ChatRequest) -> ChatResponse:
         raise HTTPException(status_code=502, detail=format_agent_error(exc)) from exc
 
     answer = result["messages"][-1].content if result.get("messages") else ""
+    sources = _extract_sources(result.get("messages", []))
+
     return ChatResponse(
         session_id=session_id,
         answer=answer,
-        sources=[],
+        sources=sources,
     )
