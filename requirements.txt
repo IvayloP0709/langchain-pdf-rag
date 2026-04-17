@@ -8,3 +8,5 @@ chromadb
 pypdf
 python-dotenv
 sqlalchemy
+streamlit
+requests
