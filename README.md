@@ -308,3 +308,11 @@ Try one of:
 - Never commit `.env`.
 - Rotate keys if they were ever exposed.
 - Keep API keys scoped to least privilege where possible.
+
+## Engineering Notes
+
+Built iteratively, one capability per commit (ingestion → retriever → LangGraph
+agent → persistent memory → FastAPI → Streamlit UI), each followed by a test
+before moving on. AI coding assistants (Claude Code) were used throughout for
+implementation and review, with every change run through `pytest`, `ruff`,
+and `black` via pre-commit before being accepted.

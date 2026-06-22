@@ -30,11 +30,8 @@ htmlcov/
 # Docker
 *.log
 
-# data
-data/papers/
-
-# md files 
-*.md
-
 # egg
 *.egg-info/
+
+# internal planning notes, not part of the public project
+portfolio-plan/

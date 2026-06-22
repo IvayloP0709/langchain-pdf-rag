@@ -3,18 +3,18 @@ repos:
     hooks:
       - id: ruff-fix
         name: ruff-fix
-        entry: .venv/Scripts/python.exe -m ruff check --fix .
+        entry: python -m ruff check --fix .
         language: system
         pass_filenames: false
 
       - id: ruff-format
         name: ruff-format
-        entry: .venv/Scripts/python.exe -m ruff format .
+        entry: python -m ruff format .
         language: system
         pass_filenames: false
 
       - id: black
         name: black
-        entry: .venv/Scripts/python.exe -m black .
+        entry: python -m black .
         language: system
         pass_filenames: false

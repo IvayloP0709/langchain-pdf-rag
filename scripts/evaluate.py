@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""WIP: loads the eval set and reports its size. Scoring against the agent is not implemented yet."""
 import json
 from pathlib import Path
 
