@@ -96,8 +96,12 @@ python -m src.main chat --session-id demo
 - `src/ingestion/*`: loaders, chunking, embedding model selection
 - `src/retrieval/*`: vectorstore creation/loading and retrieval helpers
 - `src/agent/*`: LangGraph nodes, router, tools, memory
+- `src/eval/*`: eval set generation, retrieval metrics, LLM-as-judge, run reporting
 - `scripts/download_arxiv_pdfs.py`: arXiv query + PDF downloader
+- `scripts/generate_eval_set.py`: generates an eval set from ingested documents
+- `scripts/evaluate.py`: runs the eval set against the agent and writes a run report
 - `data/papers`: local PDF corpus
+- `data/eval`: eval set and run reports
 - `tests/test_memory.py`: memory persistence regression test
 
 ## Prerequisites
@@ -261,6 +265,47 @@ DOC_PREVIEW_CHARS=800
 
 - Lower values reduce prompt size and latency.
 - Higher values may increase context coverage at the cost of speed.
+
+## Evaluation
+
+The project includes an eval harness that measures retrieval quality, answer quality,
+latency, and cost against a known set of questions — a baseline to compare future
+pipeline changes (e.g. a fine-tuned reranker) against.
+
+1. Build a real corpus and ingest it (see "Download Papers from arXiv" and "Build the
+   Vector Store" above).
+2. Generate an eval set from the ingested documents:
+
+```bash
+python scripts/generate_eval_set.py \
+    --persist-directory ./chroma_db \
+    --output data/eval/eval_set.jsonl \
+    --questions-per-doc 2
+```
+
+This uses an LLM to write a question + reference answer per sampled chunk, grounded
+in the actual ingested content, and writes them to `data/eval/eval_set.jsonl`.
+
+3. Run the eval:
+
+```bash
+python -m src.main eval
+```
+
+Useful flags:
+- `--limit N`: only run the first N examples (good for a quick sanity check).
+- `--skip-judge`: skip LLM-as-judge answer scoring, retrieval metrics only (no extra API cost).
+- `--k`, `--search-type`: tune the direct-retrieval comparison.
+
+Each run computes:
+- **Retrieval metrics** (hit rate, MRR, precision@k), both for a direct retriever call
+  and for what the agent actually retrieved end-to-end.
+- **Answer quality**, via LLM-as-judge scoring of faithfulness/relevance/correctness.
+- **Latency and cost per query**.
+
+Results are written to `data/eval/runs/<timestamp>/` (`results.jsonl` + `summary.json` +
+`summary.csv`), with a row appended to `data/eval/runs/history.csv` so runs can be
+diffed over time (e.g. before/after adding a reranker).
 
 ## Run Tests
 

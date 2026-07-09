@@ -10,9 +10,29 @@ PROCESS_START = time.perf_counter()
 
 
 def run_eval(args: argparse.Namespace) -> int:
-    """Run runtime configuration validation checks."""
-    print("Eval command scaffold is in place.")
-    print("Next: create scripts/evaluate.py and data/eval/eval_set.jsonl.")
+    """Run the eval set through the agent, score it, and write a run report."""
+    ok, message = validate_runtime_config()
+    if not ok:
+        print(f"ERROR: {message}")
+        return 1
+
+    from src.eval.runner import run_evaluation
+
+    try:
+        run_evaluation(
+            eval_set_path=args.eval_set,
+            persist_directory=args.persist_directory,
+            k=args.k,
+            judge_model=args.judge_model,
+            output_dir=args.output_dir,
+            limit=args.limit,
+            skip_judge=args.skip_judge,
+            search_type=args.search_type,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"ERROR: {exc}")
+        return 1
+
     return 0
 
 
@@ -216,7 +236,34 @@ def build_parser() -> argparse.ArgumentParser:
     )
     chat_parser.set_defaults(func=run_chat)
 
-    eval_parser = subparsers.add_parser("eval", help="Run evaluation scaffold.")
+    eval_parser = subparsers.add_parser("eval", help="Run the eval set against the agent.")
+    eval_parser.add_argument(
+        "--eval-set", default="data/eval/eval_set.jsonl", help="Path to the eval set JSONL."
+    )
+    eval_parser.add_argument(
+        "--persist-directory", default="./chroma_db", help="Vectorstore persistence directory."
+    )
+    eval_parser.add_argument(
+        "--k", type=int, default=None, help="Retrieval k (defaults to RETRIEVAL_K)."
+    )
+    eval_parser.add_argument(
+        "--judge-model", default="gpt-4o-mini", help="OpenAI chat model used for LLM-as-judge."
+    )
+    eval_parser.add_argument(
+        "--output-dir", default="data/eval/runs", help="Directory to write the run report under."
+    )
+    eval_parser.add_argument(
+        "--limit", type=int, default=None, help="Only evaluate the first N examples."
+    )
+    eval_parser.add_argument(
+        "--skip-judge", action="store_true", help="Skip LLM-as-judge answer quality scoring."
+    )
+    eval_parser.add_argument(
+        "--search-type",
+        choices=["similarity", "mmr"],
+        default="similarity",
+        help="Retrieval search type for the direct-retrieval metric.",
+    )
     eval_parser.set_defaults(func=run_eval)
 
     return parser

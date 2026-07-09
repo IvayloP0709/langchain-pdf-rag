@@ -16,6 +16,7 @@ env/
 *.sqlite
 chroma_db/
 data/papers/
+data/eval/runs/
 
 # IDE
 .idea/
@@ -35,3 +36,6 @@ htmlcov/
 
 # internal planning notes, not part of the public project
 portfolio-plan/
+
+# claude md 
+CLAUDE.md
