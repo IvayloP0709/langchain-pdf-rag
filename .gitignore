@@ -37,5 +37,8 @@ htmlcov/
 # internal planning notes, not part of the public project
 portfolio-plan/
 
-# claude md 
+# claude md
 CLAUDE.md
+
+# local Claude Code tooling config, not part of the project
+.claude/
