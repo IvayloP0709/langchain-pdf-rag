@@ -1,6 +1,10 @@
 import os
 from typing import Tuple
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 def str_to_bool(s: str) -> bool:
     return s.strip().lower() in {"1", "true", "yes", "on"}
