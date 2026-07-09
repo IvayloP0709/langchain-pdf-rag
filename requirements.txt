@@ -10,3 +10,5 @@ python-dotenv
 sqlalchemy
 streamlit
 requests
+fastapi
+uvicorn[standard]
