@@ -57,6 +57,7 @@ def initialize_vectorstore(persist_directory: str):
     embeddings = get_embedding_model()
     vectorstore = load_vectorstore(embeddings, persist_directory)
     set_vectorstore(vectorstore)
+    return vectorstore
 
 
 # ingesting documents

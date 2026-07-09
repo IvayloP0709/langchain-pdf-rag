@@ -1,12 +1,11 @@
-import re
 from typing import List
 
 from fastapi import FastAPI, HTTPException
-from langchain_core.messages import ToolMessage
 
 from populate_vectorstore import populate_vectorstore
 from src.agent.graph import create_agent_graph
 from src.agent.memory import create_agent_with_memory
+from src.agent.sources import extract_sources_from_messages
 from src.api.schemas import (
     AskRequest,
     AskResponse,
@@ -69,40 +68,8 @@ def _get_memory_agent():
 
 
 def _extract_sources(messages) -> List[SourceBlock]:
-    """
-    Extract source information from the agent's messages.
-    Expected format includes sections like:
-    Document 1:
-    <snippet>
-    """
-    sources: List[SourceBlock] = []
-    pattern = re.compile(r"Document\s+(\d+):\n?(.*?)\s*(?=\nDocument\s+\d+:|\Z)", re.DOTALL)
-
-    for msg in messages or []:
-        if not isinstance(msg, ToolMessage):
-            continue
-
-        content = msg.content if isinstance(msg.content, str) else ""
-        if not content:
-            continue
-
-        for match in pattern.finditer(content):
-            rank = int(match.group(1))
-            block = match.group(2).strip()
-            if not block:
-                continue
-
-            source_match = re.search(r"Source:\s*(.+)", block, flags=re.IGNORECASE)
-            source = source_match.group(1).strip() if source_match else "unknown"
-
-            # remove header lines from snippet
-            snippet = re.sub(r"(?im)^Source:\s*.*$", "", block)
-            snippet = re.sub(r"(?im)^Page:\s*.*$", "", snippet)
-            snippet = re.sub(r"(?im)^Snippet:\s*", "", snippet).strip()
-
-            sources.append(SourceBlock(source=source, snippet=snippet[:800], rank=rank))
-
-    return sources
+    """Extract source information from the agent's messages."""
+    return [SourceBlock(**d) for d in extract_sources_from_messages(messages)]
 
 
 @app.get("/health", response_model=HealthResponse)

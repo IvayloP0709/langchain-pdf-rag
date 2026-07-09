@@ -23,6 +23,7 @@ class SourceBlock(BaseModel):
     source: str
     snippet: str
     rank: int
+    page: Optional[str] = None
 
 
 class AskRequest(BaseModel):
