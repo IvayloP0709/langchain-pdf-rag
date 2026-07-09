@@ -191,13 +191,23 @@ After adding PDFs (and optional Markdown), ingest once:
 python -m src.main ingest
 ```
 
+Whenever you add, remove, or change documents afterward, re-run ingestion with
+`--clean` so the vectorstore is rebuilt from scratch instead of appending to what's
+already there (without `--clean`, re-ingesting duplicates every chunk that was
+already indexed):
+
+```bash
+python -m src.main ingest --clean
+```
+
 Optional custom paths:
 
 ```bash
 python -m src.main ingest \
     --pdf-directory data/papers \
     --md-directory docs \
-    --persist-directory ./chroma_db
+    --persist-directory ./chroma_db \
+    --clean
 ```
 
 ## Ask a Single Question

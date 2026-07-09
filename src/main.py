@@ -85,7 +85,21 @@ def initialize_vectorstore(persist_directory: str):
 
 def run_ingest(args: argparse.Namespace) -> int:
     """Run the document ingestion and vectorstore population."""
+    import shutil
+    from pathlib import Path
+
     from populate_vectorstore import populate_vectorstore
+
+    ok, message = validate_runtime_config()
+    if not ok:
+        print(f"ERROR: {message}")
+        return 1
+
+    if args.clean:
+        persist_path = Path(args.persist_directory)
+        if persist_path.exists():
+            print(f"--clean: removing existing vectorstore at {persist_path}...")
+            shutil.rmtree(persist_path)
 
     vectorstore = populate_vectorstore(
         pdf_directory=args.pdf_directory,
@@ -215,6 +229,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ingest_parser.add_argument(
         "--persist-directory", default="./chroma_db", help="Vectorstore persistence directory."
+    )
+    ingest_parser.add_argument(
+        "--clean",
+        action="store_true",
+        help=(
+            "Wipe the existing vectorstore before ingesting, instead of appending to it. "
+            "Use this whenever you add/remove/change documents in the source directory - "
+            "without it, re-running ingest duplicates chunks that were already indexed."
+        ),
     )
     ingest_parser.set_defaults(func=run_ingest)
 
