@@ -65,13 +65,17 @@ def test_run_evaluation_smoke(tmp_path, monkeypatch):
     _write_fixture_eval_set(eval_set_path)
     output_dir = tmp_path / "runs"
 
+    captured_retriever_kwargs = {}
+
+    def fake_create_retriever(vectorstore, search_type, k, reranker_mode, candidate_k):
+        captured_retriever_kwargs.update(
+            search_type=search_type, k=k, reranker_mode=reranker_mode, candidate_k=candidate_k
+        )
+        return FakeRetriever([FakeDoc("data/papers/a.pdf", 0)])
+
     monkeypatch.setattr(main_module, "initialize_vectorstore", lambda persist_directory: object())
     monkeypatch.setattr(agent_graph, "create_agent_graph", lambda: FakeGraph())
-    monkeypatch.setattr(
-        retrievers,
-        "create_retriever",
-        lambda vectorstore, search_type, k: FakeRetriever([FakeDoc("data/papers/a.pdf", 0)]),
-    )
+    monkeypatch.setattr(retrievers, "create_retriever", fake_create_retriever)
 
     summary = runner.run_evaluation(
         eval_set_path=str(eval_set_path),
@@ -85,6 +89,9 @@ def test_run_evaluation_smoke(tmp_path, monkeypatch):
     # FakeRetriever/FakeGraph always "retrieve" a.pdf; only eval_0001 expects a.pdf
     assert summary["retrieval_direct"]["hit_rate"] == 0.5
     assert summary["retrieval_agent"]["hit_rate"] == 0.5
+
+    assert captured_retriever_kwargs["reranker_mode"] == "none"
+    assert captured_retriever_kwargs["candidate_k"] == 15
 
     run_dirs = [p for p in output_dir.iterdir() if p.is_dir()]
     assert len(run_dirs) == 1

@@ -15,15 +15,18 @@ fi
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 prompt_file="$script_dir/ralph-prompt.md"
 
-branch="ralph/$(date +%Y%m%d-%H%M%S)"
-git checkout -b "$branch"
-echo "Working on branch: $branch"
+# Branch creation happens inside ralph-prompt.md itself (step 2), once the
+# issue is known, so the branch name can reflect it — not here, since at this
+# point we don't yet know which issue (if any) will be picked.
 
 for ((i = 1; i <= "$1"; i++)); do
   echo "=== Ralph iteration $i/$1 ==="
 
-  result=$(claude --permission-mode acceptEdits -p "$(cat "$prompt_file")")
-  echo "$result"
+  # `tee /dev/stderr` prints each chunk to the terminal as it arrives, instead
+  # of buffering the whole response until the command finishes — `result` still
+  # gets the full text afterward (via the stdout side of the pipe) so the
+  # <promise>COMPLETE</promise> check below still works.
+  result=$(claude --permission-mode acceptEdits -p "$(cat "$prompt_file")" --verbose | tee /dev/stderr)
 
   if [[ "$result" == *"<promise>COMPLETE</promise>"* ]]; then
     echo "No more ready-for-agent issues after $i iteration(s)."

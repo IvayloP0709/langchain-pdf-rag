@@ -3,6 +3,8 @@ from typing import Any
 
 from langchain_core.tools import tool
 
+from src.retrieval.retrievers import create_retriever
+
 # store the vectorstore as a module variable
 _vectorstore: Any = None
 
@@ -37,9 +39,14 @@ def search_documents(query: str) -> str:
 
     k = int(os.getenv("RETRIEVAL_K", "3"))
     max_chars = int(os.getenv("DOC_PREVIEW_CHARS", "800"))
+    reranker_mode = os.getenv("RERANKER_MODE", "none")
+    candidate_k = int(os.getenv("RERANK_CANDIDATE_K", "15"))
 
     try:
-        docs = _vectorstore.similarity_search(query, k=k)
+        retriever = create_retriever(
+            _vectorstore, k=k, reranker_mode=reranker_mode, candidate_k=candidate_k
+        )
+        docs = retriever.invoke(query)
     except Exception as e:
         return f"Error during document search: {e}"
 
