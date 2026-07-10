@@ -18,7 +18,17 @@ Take the first qualifying issue in ascending number order.
 
 If no issue qualifies, output exactly the line `<promise>COMPLETE</promise>` and stop — do not do anything else.
 
-## 2. Claim it
+## 2. Create a branch
+
+Name it after the issue, not a bare timestamp, so it's identifiable at a glance: `ralph/<number>-<slug>`, where `<slug>` is the issue title lowercased, non-alphanumeric runs replaced with `-`, trimmed of leading/trailing `-`, and cut to roughly 50 characters (the number alone guarantees uniqueness, so a truncated slug is fine — don't awkwardly abbreviate words to fit, just cut at a hyphen boundary).
+
+Example: issue `#1 — Unify retrieval behind create_retriever + reranker config plumbing (no-op)` → `ralph/1-unify-retrieval-behind-create-retriever-reranker`.
+
+```
+git checkout -b ralph/<number>-<slug>
+```
+
+## 3. Claim it
 
 Immediately, before any other work:
 
@@ -28,7 +38,7 @@ gh issue edit <number> --repo IvayloP0709/langchain-pdf-rag --add-assignee @me
 
 This must happen first so a concurrent run doesn't pick the same issue.
 
-## 3. Read before writing
+## 4. Read before writing
 
 Fetch the issue's full body and comments:
 
@@ -42,7 +52,7 @@ If it references a spec under `docs/specs/`, read that in full too — the issue
 - Read `docs/agents/domain.md` and any ADRs it points at for this area.
 - List out, in your own working notes, each line of the issue's "Acceptance criteria" checklist as a separate item you will individually verify later — don't treat the checklist as a vague summary of the goal.
 
-## 4. Implement against each acceptance criterion, test-first
+## 5. Implement against each acceptance criterion, test-first
 
 Work through the "Acceptance criteria" checklist one item at a time, not as a single undifferentiated pass over the codebase:
 
@@ -52,7 +62,7 @@ Work through the "Acceptance criteria" checklist one item at a time, not as a si
 
 Keep the diff scoped to this one issue. If you notice an unrelated improvement or bug while working, do not fix it inline — note it in your final summary instead.
 
-## 5. Feedback loop: run it, don't assume it
+## 6. Feedback loop: run it, don't assume it
 
 After each criterion, and again at the end, run:
 
@@ -61,7 +71,7 @@ After each criterion, and again at the end, run:
 
 If anything fails, do not move on and do not report success — read the actual failure output, fix the specific cause, and rerun. Repeat this diagnose-fix-rerun cycle until the run is clean. If the same failure persists after 3 fix attempts, stop implementing further criteria, leave the failing state as-is, and report the exact failure and what you tried in your final summary rather than silently working around it (e.g. by deleting or weakening a test).
 
-## 6. Stop for review
+## 7. Stop for review
 
 Do **not** commit and do **not** close the issue — leave the changes uncommitted on the current branch so a human can review the diff first.
 
@@ -98,6 +108,6 @@ Print this summary before stopping, filled in concretely — not a restatement o
 <anything you're unsure about, anything out-of-scope you noticed but didn't fix, any assumption you made that the issue didn't specify>
 ```
 
-## 7. Stop
+## 8. Stop
 
 Do not start a second issue in this invocation, even if one is now unblocked. One issue's implementation per run — and no commit or issue-close without a human doing it.
