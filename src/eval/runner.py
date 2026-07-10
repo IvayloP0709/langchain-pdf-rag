@@ -60,6 +60,8 @@ def run_evaluation(
     limit: Optional[int] = None,
     skip_judge: bool = False,
     search_type: str = "similarity",
+    reranker_mode: Optional[str] = None,
+    candidate_k: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Run the eval set through both a direct retriever and the full agent graph,
@@ -81,9 +83,17 @@ def run_evaluation(
         raise ValueError(f"Eval set at {eval_set_path} has no examples to run.")
 
     k = k or int(os.getenv("RETRIEVAL_K", "3"))
+    reranker_mode = reranker_mode or os.getenv("RERANKER_MODE", "none")
+    candidate_k = candidate_k or int(os.getenv("RERANK_CANDIDATE_K", "15"))
 
     vectorstore = initialize_vectorstore(persist_directory)
-    retriever = create_retriever(vectorstore, search_type=search_type, k=k)
+    retriever = create_retriever(
+        vectorstore,
+        search_type=search_type,
+        k=k,
+        reranker_mode=reranker_mode,
+        candidate_k=candidate_k,
+    )
     graph = create_agent_graph()
 
     results: List[Dict[str, Any]] = []
