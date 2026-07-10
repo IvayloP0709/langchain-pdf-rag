@@ -42,3 +42,7 @@ CLAUDE.md
 
 # local Claude Code tooling config, not part of the project
 .claude/
+
+# Ralph loop's live container state (Claude Code writes runtime cache into
+# this on every run, same as ~/.claude.json on the host) — not a stable seed file
+scripts/ralph-claude-config.json

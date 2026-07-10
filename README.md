@@ -371,3 +371,21 @@ agent → persistent memory → FastAPI → Streamlit UI), each followed by a te
 before moving on. AI coding assistants (Claude Code) were used throughout for
 implementation and review, with every change run through `pytest`, `ruff`,
 and `black` via pre-commit before being accepted.
+
+### Autonomous issue implementation ("Ralph loop")
+
+Larger feature work (e.g. the reranker in `docs/specs/fine-tuned-reranker.md`) is broken into
+GitHub issues with explicit acceptance criteria and native blocking dependencies between them.
+`scripts/ralph.sh` drives Claude Code headlessly and repeatedly — the "Ralph Wiggum" pattern
+(one-shot, non-interactive invocations in a loop, checked against a completion sigil) — inside a
+disposable Docker container (`scripts/ralph.Dockerfile`), so each run:
+
+1. Finds the lowest-numbered open, unblocked, unassigned `ready-for-agent` issue via `gh`.
+2. Claims it, implements it, and runs the full test suite/typecheck.
+3. Stops for human review — it does not commit or close the issue itself.
+
+Authentication uses a long-lived token from `claude setup-token`, tied to an existing Claude
+subscription rather than metered API credits. Running inside a container means a bad iteration's
+blast radius is contained to a disposable filesystem rather than the host, aside from the one
+bind-mounted checkout it's deliberately allowed to change. Full instructions live in
+`scripts/ralph-prompt.md`.
