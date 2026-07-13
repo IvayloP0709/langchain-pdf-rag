@@ -116,8 +116,9 @@ class FakeMiningRetriever:
     def invoke(self, query):
         return self._candidates_by_query[query]
 
-    def batch(self, queries, config=None, return_exceptions=False):
-        return [self._candidates_by_query[q] for q in queries]
+    def batch_as_completed(self, queries, config=None, return_exceptions=False):
+        for index, query in enumerate(queries):
+            yield index, self._candidates_by_query[query]
 
 
 class FakeGenerationLLM:
@@ -129,10 +130,10 @@ class FakeGenerationLLM:
         self.calls.append(messages)
         return self.results.pop(0)
 
-    def batch(self, inputs, config=None, return_exceptions=False):
+    def batch_as_completed(self, inputs, config=None, return_exceptions=False):
         self.calls.extend(inputs)
-        batch_results, self.results = self.results[: len(inputs)], self.results[len(inputs) :]
-        return batch_results
+        for index in range(len(inputs)):
+            yield index, self.results[index]
 
 
 def test_generate_training_set_writes_disjoint_train_val_split(tmp_path, monkeypatch):

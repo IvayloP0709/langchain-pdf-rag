@@ -147,6 +147,29 @@ def verify_disjoint_from_eval_set(questions: List[str], eval_set_path: str) -> N
         )
 
 
+def _run_batch_with_progress(
+    runnable: Any, inputs: List[Any], max_concurrency: int, label: str
+) -> List[Any]:
+    """Run `runnable` over `inputs` concurrently, printing progress as results complete.
+    Runnable.batch() blocks silently until the entire batch is done, which on a large batch
+    (e.g. ~1800 chunks) looks identical to a hang; batch_as_completed() streams results back
+    as each one finishes instead, so progress is visible."""
+    total = len(inputs)
+    results: List[Any] = [None] * total
+    print_every = max(1, total // 20)
+
+    completed = 0
+    for index, result in runnable.batch_as_completed(
+        inputs, config={"max_concurrency": max_concurrency}, return_exceptions=True
+    ):
+        results[index] = result
+        completed += 1
+        if completed % print_every == 0 or completed == total:
+            print(f"  {label}: {completed}/{total} done")
+
+    return results
+
+
 def write_jsonl(path: str, examples: List[RerankExample]) -> None:
     out_path = Path(path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -224,8 +247,8 @@ def generate_training_set(
         ]
         for chunk in chunks
     ]
-    generation_results = llm.batch(
-        generation_inputs, config={"max_concurrency": max_concurrency}, return_exceptions=True
+    generation_results = _run_batch_with_progress(
+        llm, generation_inputs, max_concurrency, "questions"
     )
 
     positives: List[Dict[str, Any]] = []
@@ -247,10 +270,11 @@ def generate_training_set(
         f"Mining hard negatives for {len(positives)} questions "
         f"(max_concurrency={max_concurrency})..."
     )
-    mining_results = mining_retriever.batch(
+    mining_results = _run_batch_with_progress(
+        mining_retriever,
         [positive["question"] for positive in positives],
-        config={"max_concurrency": max_concurrency},
-        return_exceptions=True,
+        max_concurrency,
+        "mining",
     )
 
     groups: List[List[RerankExample]] = []
