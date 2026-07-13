@@ -17,6 +17,7 @@ dependencies = [
     "pypdf",
     "python-dotenv",
     "sqlalchemy",
+    "fastapi",
 ]
 
 [project.optional-dependencies]
@@ -60,3 +61,4 @@ ignore = []
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-q"
+pythonpath = ["."]
