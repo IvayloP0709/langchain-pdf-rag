@@ -20,6 +20,7 @@ python scripts/generate_reranker_training_set.py \
 import argparse
 import random
 import sys
+import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -27,6 +28,12 @@ from langchain_core.documents import Document
 from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# Cosmetic warning from ChatOpenAI(...).with_structured_output()'s internal tracing
+# bookkeeping (a {"raw", "parsed", "parsing_error"} structure whose declared type for
+# "parsed" doesn't match the real parsed object at runtime) - harmless, doesn't affect
+# the actual GeneratedQuestion values this script uses.
+warnings.filterwarnings("ignore", message="Pydantic serializer warnings")
 
 _TRAINING_SYSTEM_PROMPT = """You write training questions for fine-tuning a retrieval reranker, \
 from a single excerpt of a research paper.
