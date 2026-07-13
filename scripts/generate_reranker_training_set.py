@@ -5,10 +5,12 @@ For each ingested chunk, prompts gpt-4o-mini for a question the chunk answers (a
 pair), then mines hard negatives from the current (un-fine-tuned) retriever's top results for
 that question, excluding any chunk from the same source document as the positive. Question
 generation and hard-negative mining are each run as a concurrent batch (see --max-concurrency)
-rather than one chunk at a time, since the dominant cost is network round-trips. Verifies the
-generated questions are disjoint from the existing eval set (so the later before/after eval
-comparison isn't contaminated by training-on-the-test-set), then writes an 85/15 train/val
-JSONL split of `{query, doc_text, label}` records.
+rather than one chunk at a time, since the dominant cost is network round-trips. Chunks already
+used to generate a frozen eval-set question are skipped up front (re-deriving a question from
+the identical source text is the main way training/eval question overlap happens), and the
+generated questions are then verified disjoint from the existing eval set as a final safety net
+(so the later before/after eval comparison isn't contaminated by training-on-the-test-set),
+before writing an 85/15 train/val JSONL split of `{query, doc_text, label}` records.
 
 Usage example:
 python scripts/generate_reranker_training_set.py \
@@ -22,7 +24,7 @@ import random
 import sys
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from langchain_core.documents import Document
 from pydantic import BaseModel
@@ -116,6 +118,20 @@ def _normalize_question(question: str) -> str:
     return " ".join(question.strip().lower().split())
 
 
+def eval_set_chunk_ids(eval_set_path: str) -> Set[str]:
+    """Source chunk IDs already used to generate a frozen eval-set question. Re-deriving a
+    training question from the identical source text is the main way an LLM converges on the
+    same (or a near-identical) phrasing twice, so excluding these chunks up front is cheaper
+    than discovering the overlap only after paying for the full generation run."""
+    from src.eval.schema import load_eval_set
+
+    return {
+        example.source_chunk_id
+        for example in load_eval_set(eval_set_path)
+        if example.source_chunk_id
+    }
+
+
 def verify_disjoint_from_eval_set(questions: List[str], eval_set_path: str) -> None:
     """Fail loudly if any generated question overlaps the frozen eval set - training on a
     test-set question would contaminate the before/after eval comparison."""
@@ -172,6 +188,19 @@ def generate_training_set(
         raise ValueError(
             "No chunks available to generate training pairs from. Run ingestion first."
         )
+
+    # Fails fast on a missing/invalid eval set, before any LLM calls are made.
+    excluded_chunk_ids = eval_set_chunk_ids(eval_set_path)
+    if excluded_chunk_ids:
+        num_chunks_before = len(chunks)
+        chunks = [chunk for chunk in chunks if chunk["id"] not in excluded_chunk_ids]
+        num_excluded = num_chunks_before - len(chunks)
+        if num_excluded:
+            print(
+                f"Excluded {num_excluded} chunk(s) already used to generate eval-set questions "
+                f"at {eval_set_path}"
+            )
+
     if limit is not None:
         chunks = chunks[:limit]
 

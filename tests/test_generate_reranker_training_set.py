@@ -56,9 +56,10 @@ def test_mine_hard_negatives_all_same_source_returns_empty():
     assert negatives == []
 
 
-def _write_eval_set(path, questions):
+def _write_eval_set(path, questions, chunk_ids=None):
+    chunk_ids = chunk_ids or [None] * len(questions)
     with open(path, "w", encoding="utf-8") as f:
-        for i, question in enumerate(questions, start=1):
+        for i, (question, chunk_id) in enumerate(zip(questions, chunk_ids), start=1):
             f.write(
                 json.dumps(
                     {
@@ -67,6 +68,7 @@ def _write_eval_set(path, questions):
                         "reference_answer": "answer",
                         "expected_source": "a.pdf",
                         "expected_page": 0,
+                        "source_chunk_id": chunk_id,
                     }
                 )
                 + "\n"
@@ -86,6 +88,15 @@ def test_verify_disjoint_from_eval_set_raises_on_overlap(tmp_path):
 
     with pytest.raises(ValueError, match="overlap"):
         verify_disjoint_from_eval_set(["  what IS x?  ", "How does Z work?"], str(eval_path))
+
+
+def test_eval_set_chunk_ids_returns_only_populated_ids(tmp_path):
+    eval_path = tmp_path / "eval_set.jsonl"
+    _write_eval_set(eval_path, ["Q1?", "Q2?", "Q3?"], chunk_ids=["chunk-1", None, "chunk-3"])
+
+    from scripts.generate_reranker_training_set import eval_set_chunk_ids
+
+    assert eval_set_chunk_ids(str(eval_path)) == {"chunk-1", "chunk-3"}
 
 
 class FakeVectorstore:
@@ -361,3 +372,56 @@ def test_generate_training_set_raises_on_eval_set_overlap(tmp_path, monkeypatch)
             min_chunk_chars=300,
             num_negatives=1,
         )
+
+
+def test_generate_training_set_skips_chunks_already_used_by_eval_set(tmp_path, monkeypatch):
+    import scripts.generate_reranker_training_set as gen_mod
+
+    # Chunk "1" was already used to generate an eval-set question - it must never be sent to
+    # the generation LLM at all, regardless of what question the LLM would produce for it.
+    vectorstore = FakeVectorstore(
+        ids=["1", "2", "3"],
+        documents=["a" * 500, "b" * 500, "c" * 500],
+        metadatas=[
+            {"source": "paper_a.pdf", "page": 0},
+            {"source": "paper_b.pdf", "page": 0},
+            {"source": "paper_c.pdf", "page": 0},
+        ],
+    )
+
+    fake_llm = FakeGenerationLLM(
+        [
+            GeneratedQuestion(answerable=True, question="What is Y?"),
+            GeneratedQuestion(answerable=True, question="What is Z?"),
+        ]
+    )
+
+    all_docs = [
+        _doc("a" * 500, "paper_a.pdf"),
+        _doc("b" * 500, "paper_b.pdf"),
+        _doc("c" * 500, "paper_c.pdf"),
+    ]
+    candidates_by_query = {"What is Y?": all_docs, "What is Z?": all_docs}
+
+    monkeypatch.setattr("src.ingestion.embedders.get_embedding_model", lambda: object())
+    monkeypatch.setattr("src.retrieval.vectorstore.load_vectorstore", lambda emb, p: vectorstore)
+    monkeypatch.setattr(
+        "src.retrieval.retrievers.create_retriever",
+        lambda vs, k: FakeMiningRetriever(candidates_by_query),
+    )
+    monkeypatch.setattr(gen_mod, "_get_generation_llm", lambda model: fake_llm)
+
+    eval_path = tmp_path / "eval_set.jsonl"
+    _write_eval_set(eval_path, ["An unrelated eval question?"], chunk_ids=["1"])
+
+    stats = generate_training_set(
+        persist_directory="unused",
+        output_dir=str(tmp_path / "reranker"),
+        eval_set_path=str(eval_path),
+        min_chunk_chars=300,
+        num_negatives=1,
+    )
+
+    # Only chunks 2 and 3 were ever sent to the LLM - chunk 1 was excluded before generation.
+    assert len(fake_llm.calls) == 2
+    assert stats["num_questions"] == 2
