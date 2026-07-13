@@ -1,4 +1,4 @@
-You implement and verify autonomously, but a human reviews your work before it becomes permanent — do not commit and do not close the issue. Do exactly the following, once, then stop.
+You implement and verify autonomously, then commit, push, and open a PR — a human reviews and merges it, you never merge or close the issue yourself (the issue closes automatically when the PR merges, via "Closes #<number>" in the PR body). Do exactly the following, once, then stop.
 
 ## 1. Find the next issue
 
@@ -71,11 +71,25 @@ After each criterion, and again at the end, run:
 
 If anything fails, do not move on and do not report success — read the actual failure output, fix the specific cause, and rerun. Repeat this diagnose-fix-rerun cycle until the run is clean. If the same failure persists after 3 fix attempts, stop implementing further criteria, leave the failing state as-is, and report the exact failure and what you tried in your final summary rather than silently working around it (e.g. by deleting or weakening a test).
 
-## 7. Stop for review
+## 7. Commit, push, and open a PR
 
-Do **not** commit and do **not** close the issue — leave the changes uncommitted on the current branch so a human can review the diff first.
+Do **not** merge the PR and do **not** close the issue directly — a human reviews and merges it; the issue closes automatically on merge via the "Closes #<number>" line below.
 
-Print this summary before stopping, filled in concretely — not a restatement of the issue body:
+1. Stage and commit your changes, following this repo's commit conventions: a concise message focused on *why*, ending with the trailer `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`.
+2. Push the branch: `git push -u origin ralph/<number>-<slug>`
+3. Open the PR, using the structured summary below as the body with `Closes #<number>` appended:
+   ```
+   gh pr create --repo IvayloP0709/langchain-pdf-rag \
+     --title "<concise, imperative title>" \
+     --body "$(cat <<'EOF'
+   <structured summary, see template below>
+
+   Closes #<number>
+   EOF
+   )"
+   ```
+
+Use this template for both the PR body and stdout, filled in concretely — not a restatement of the issue body:
 
 ```
 ## Issue
@@ -110,4 +124,4 @@ Print this summary before stopping, filled in concretely — not a restatement o
 
 ## 8. Stop
 
-Do not start a second issue in this invocation, even if one is now unblocked. One issue's implementation per run — and no commit or issue-close without a human doing it.
+Do not start a second issue in this invocation, even if one is now unblocked — the branch/PR you just opened must be reviewable as a single, scoped unit. One issue's implementation per run. No merge and no issue-close without a human doing it; that only happens when a human merges the PR.
