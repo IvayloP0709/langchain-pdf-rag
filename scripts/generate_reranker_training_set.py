@@ -3,7 +3,9 @@
 
 For each ingested chunk, prompts gpt-4o-mini for a question the chunk answers (a positive
 pair), then mines hard negatives from the current (un-fine-tuned) retriever's top results for
-that question, excluding any chunk from the same source document as the positive. Verifies the
+that question, excluding any chunk from the same source document as the positive. Question
+generation and hard-negative mining are each run as a concurrent batch (see --max-concurrency)
+rather than one chunk at a time, since the dominant cost is network round-trips. Verifies the
 generated questions are disjoint from the existing eval set (so the later before/after eval
 comparison isn't contaminated by training-on-the-test-set), then writes an 85/15 train/val
 JSONL split of `{query, doc_text, label}` records.
@@ -143,6 +145,7 @@ def generate_training_set(
     val_fraction: float = 0.15,
     seed: int = 42,
     limit: Optional[int] = None,
+    max_concurrency: int = 10,
 ) -> Dict[str, int]:
     """Generate synthetic (query, positive chunk, hard negatives) training data from the
     documents already ingested into the vectorstore at `persist_directory`, and write an
@@ -169,46 +172,71 @@ def generate_training_set(
     mining_retriever = create_retriever(vectorstore, k=candidate_k)
     llm = _get_generation_llm(model)
 
-    groups: List[List[RerankExample]] = []
-    questions: List[str] = []
+    # Phase 1: batch the question-generation LLM calls concurrently - this is the dominant
+    # cost (one OpenAI round-trip per chunk) and the main reason a ~1800-chunk corpus would
+    # otherwise take the better part of an hour running fully sequentially.
+    print(f"Generating questions for {len(chunks)} chunks (max_concurrency={max_concurrency})...")
+    generation_inputs = [
+        [
+            {"role": "system", "content": _TRAINING_SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": _TRAINING_USER_TEMPLATE.format(
+                    source=chunk["source"], page=chunk["page"], text=chunk["text"]
+                ),
+            },
+        ]
+        for chunk in chunks
+    ]
+    generation_results = llm.batch(
+        generation_inputs, config={"max_concurrency": max_concurrency}, return_exceptions=True
+    )
 
-    for chunk in chunks:
-        try:
-            result: GeneratedQuestion = llm.invoke(
-                [
-                    {"role": "system", "content": _TRAINING_SYSTEM_PROMPT},
-                    {
-                        "role": "user",
-                        "content": _TRAINING_USER_TEMPLATE.format(
-                            source=chunk["source"], page=chunk["page"], text=chunk["text"]
-                        ),
-                    },
-                ]
-            )
-        except Exception as exc:
-            print(f"  Skipped chunk {chunk['id']} ({chunk['source']}): {exc}")
+    positives: List[Dict[str, Any]] = []
+    for chunk, result in zip(chunks, generation_results):
+        if isinstance(result, Exception):
+            print(f"  Skipped chunk {chunk['id']} ({chunk['source']}): {result}")
             continue
 
         if not result.answerable or not result.question.strip():
             continue
 
-        question = result.question.strip()
+        positives.append({**chunk, "question": result.question.strip()})
 
-        try:
-            candidates = mining_retriever.invoke(question)
-        except Exception as exc:
-            print(f"  Skipped mining for chunk {chunk['id']} ({chunk['source']}): {exc}")
+    if not positives:
+        raise ValueError("No answerable questions were generated from the ingested corpus.")
+
+    # Phase 2: batch the hard-negative mining retriever calls the same way.
+    print(
+        f"Mining hard negatives for {len(positives)} questions "
+        f"(max_concurrency={max_concurrency})..."
+    )
+    mining_results = mining_retriever.batch(
+        [positive["question"] for positive in positives],
+        config={"max_concurrency": max_concurrency},
+        return_exceptions=True,
+    )
+
+    groups: List[List[RerankExample]] = []
+    questions: List[str] = []
+
+    for positive, candidates in zip(positives, mining_results):
+        if isinstance(candidates, Exception):
+            print(
+                f"  Skipped mining for chunk {positive['id']} ({positive['source']}): {candidates}"
+            )
             continue
 
-        negatives = mine_hard_negatives(candidates, chunk["source"], num_negatives)
+        negatives = mine_hard_negatives(candidates, positive["source"], num_negatives)
         if len(negatives) < num_negatives:
             print(
-                f"  Skipped chunk {chunk['id']} ({chunk['source']}): only found "
+                f"  Skipped chunk {positive['id']} ({positive['source']}): only found "
                 f"{len(negatives)}/{num_negatives} hard negatives from other source documents"
             )
             continue
 
-        group = [RerankExample(query=question, doc_text=chunk["text"], label=1)]
+        question = positive["question"]
+        group = [RerankExample(query=question, doc_text=positive["text"], label=1)]
         group.extend(
             RerankExample(query=question, doc_text=doc.page_content, label=0) for doc in negatives
         )
@@ -313,6 +341,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Only process the first N chunks (useful for a quick smoke run).",
     )
+    parser.add_argument(
+        "--max-concurrency",
+        type=int,
+        default=10,
+        help="Max concurrent OpenAI/retriever calls during question generation and mining.",
+    )
     return parser
 
 
@@ -338,6 +372,7 @@ def main() -> int:
             val_fraction=args.val_fraction,
             seed=args.seed,
             limit=args.limit,
+            max_concurrency=args.max_concurrency,
         )
     except (FileNotFoundError, ValueError) as exc:
         print(f"ERROR: {exc}")

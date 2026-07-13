@@ -105,6 +105,9 @@ class FakeMiningRetriever:
     def invoke(self, query):
         return self._candidates_by_query[query]
 
+    def batch(self, queries, config=None, return_exceptions=False):
+        return [self._candidates_by_query[q] for q in queries]
+
 
 class FakeGenerationLLM:
     def __init__(self, results):
@@ -114,6 +117,11 @@ class FakeGenerationLLM:
     def invoke(self, messages):
         self.calls.append(messages)
         return self.results.pop(0)
+
+    def batch(self, inputs, config=None, return_exceptions=False):
+        self.calls.extend(inputs)
+        batch_results, self.results = self.results[: len(inputs)], self.results[len(inputs) :]
+        return batch_results
 
 
 def test_generate_training_set_writes_disjoint_train_val_split(tmp_path, monkeypatch):
@@ -274,7 +282,7 @@ def test_generate_training_set_keeps_duplicate_questions_in_same_split(tmp_path,
     ]
     candidates_by_query = {
         "What is X?": all_docs,
-        "  what IS x?  ": all_docs,
+        "what IS x?": all_docs,  # mining looks up the .strip()'d question, not the raw form
         "What is Y?": all_docs,
         "What is Z?": all_docs,
     }
