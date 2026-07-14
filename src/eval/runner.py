@@ -208,6 +208,7 @@ def run_evaluation(
         "persist_directory": persist_directory,
         "k": k,
         "search_type": search_type,
+        "reranker_mode": reranker_mode,
         "judge_model": None if skip_judge else judge_model,
         "skip_judge": skip_judge,
         "retrieval_direct": aggregate_retrieval_metrics(direct_metrics),

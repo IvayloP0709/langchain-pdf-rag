@@ -92,6 +92,7 @@ def test_run_evaluation_smoke(tmp_path, monkeypatch):
 
     assert captured_retriever_kwargs["reranker_mode"] == "none"
     assert captured_retriever_kwargs["candidate_k"] == 15
+    assert summary["reranker_mode"] == "none"
 
     run_dirs = [p for p in output_dir.iterdir() if p.is_dir()]
     assert len(run_dirs) == 1
