@@ -50,10 +50,12 @@ prompt_file="$script_dir/ralph-prompt.md"
 prompt_text="$(cat "$prompt_file")"
 if [ -n "$issue_number" ]; then
   # Prepended ahead of ralph-prompt.md's own step 1 so it takes precedence:
-  # skip auto-picking and go straight to the given issue, but keep the same
-  # qualification checks (still don't blindly work a closed/assigned/blocked
-  # issue just because it was named explicitly).
-  override="OVERRIDE for step 1 (\"Find the next issue\") below: work on issue #$issue_number specifically — do not run the \`gh issue list\` auto-pick query. Still verify it qualifies: run \`gh issue view $issue_number --repo IvayloP0709/langchain-pdf-rag --json state,assignees,blockedBy\`. If it is not open, or already has an assignee, or has an open blocker, stop immediately and report exactly why instead of picking a different issue or proceeding anyway. Otherwise continue with step 2 onward, using issue #$issue_number."
+  # skip auto-picking and go straight to the given issue. The qualification
+  # rules (self-vs-other assignee) and branch-resume handling now live in
+  # ralph-prompt.md steps 1-2 themselves — shared with the auto-pick path —
+  # so this override just points at the one issue and defers to those rules
+  # instead of re-stating them here.
+  override="OVERRIDE for step 1 (\"Find the next issue\") below: work on issue #$issue_number specifically — do not run the \`gh issue list\` auto-pick query. Still verify it qualifies against the same rules as step 1 above: run \`gh issue view $issue_number --repo IvayloP0709/langchain-pdf-rag --json state,assignees,blockedBy\`. If it is not open, or has an open blocker, or is assigned to a login other than your own (check via \`gh api user --jq .login\`), stop immediately and report exactly why — do not pick a different issue or proceed anyway. Otherwise continue with step 2 onward, using issue #$issue_number — step 2 already covers resuming a branch/work-in-progress left by a prior attempt on this same issue."
   prompt_text="$override
 
 $prompt_text"

@@ -21,6 +21,7 @@ docker run --rm \
   --env-file "$repo_root/.env" \
   -v "$repo_root":/workspace \
   -v "$script_dir/ralph-claude-config.json":/root/.claude.json \
+  -v "$HOME/.gitconfig":/root/.gitconfig:ro \
   -w /workspace \
   ralph-sandbox \
   "$@"

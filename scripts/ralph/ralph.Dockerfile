@@ -38,16 +38,27 @@ RUN npm install -g @anthropic-ai/claude-code
 # --- Project setup ----------------------------------------------------------
 WORKDIR /workspace
 
-# Copy the whole repo in and install it. At `docker run` time this gets
-# overlaid by a bind mount of your actual working tree (see
-# scripts/ralph/ralph.sh), so this COPY is really just to make the image
-# buildable/self-contained — the code Ralph actually edits is the mounted
-# copy, not this one.
-COPY . .
+# Copy only the dependency manifest first, and stub in an empty src/ dir so
+# setuptools' package discovery (see pyproject.toml's
+# [tool.setuptools.packages.find]) has something to find. This keeps the pip
+# install below cached across source-only edits — copying the whole repo
+# before installing (the old order) invalidated every layer after it on ANY
+# file change, forcing a full ~2GB PyTorch/sentence-transformers reinstall on
+# every single Ralph run. The stub's actual content doesn't matter: at
+# `docker run` time /workspace gets entirely overlaid by a bind mount of the
+# real working tree (see scripts/ralph/ralph-docker.sh), so this COPY/install
+# is purely to warm the image's dependency layer at build time.
+COPY pyproject.toml .
+RUN mkdir -p src && touch src/__init__.py
 
 # Debian 12's system Python refuses plain `pip install` outside a venv
 # (PEP 668, "externally managed environment") — --break-system-packages
 # overrides that. Fine here since the container is disposable anyway.
 RUN pip install --break-system-packages -e ".[dev]"
+
+# Now bring in the real source. This only invalidates the cache from here
+# down — the dependency install above stays cached as long as pyproject.toml
+# itself doesn't change, instead of busting on every source edit.
+COPY . .
 
 ENTRYPOINT ["scripts/ralph/ralph.sh"]

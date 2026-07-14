@@ -11,22 +11,24 @@ gh issue list --repo IvayloP0709/langchain-pdf-rag --state open --label ready-fo
 
 For each candidate, in ascending issue-number order, check it qualifies:
 
-- **Unassigned** — `assignees` is empty. If it already has an assignee, skip it (another run claimed it).
+- **Unassigned, or assigned only to you** — `assignees` is empty, or every login it contains matches your own (`gh api user --jq .login`). An issue assigned to a *different* login means another run claimed it — skip it. An issue assigned only to you is either unclaimed-in-practice or a prior attempt of yours that crashed before finishing — either way, take it; step 2 below covers resuming any work already in progress on it rather than starting over.
 - **Unblocked** — `gh issue view <number> --repo IvayloP0709/langchain-pdf-rag --json blockedBy` returns no open blocking issues. If any listed blocker is still open, skip it.
 
 Take the first qualifying issue in ascending number order.
 
 If no issue qualifies, output exactly the line `<promise>COMPLETE</promise>` and stop — do not do anything else.
 
-## 2. Create a branch
+## 2. Create a branch (or resume one already in progress)
 
 Name it after the issue, not a bare timestamp, so it's identifiable at a glance: `ralph/<number>-<slug>`, where `<slug>` is the issue title lowercased, non-alphanumeric runs replaced with `-`, trimmed of leading/trailing `-`, and cut to roughly 50 characters (the number alone guarantees uniqueness, so a truncated slug is fine — don't awkwardly abbreviate words to fit, just cut at a hyphen boundary).
 
 Example: issue `#1 — Unify retrieval behind create_retriever + reranker config plumbing (no-op)` → `ralph/1-unify-retrieval-behind-create-retriever-reranker`.
 
-```
-git checkout -b ralph/<number>-<slug>
-```
+Before creating anything, check whether a prior attempt already exists: run `git branch --show-current` and `git branch --list 'ralph/<number>-*'`.
+
+- **No match** — create a fresh branch: `git checkout -b ralph/<number>-<slug>`.
+- **Exactly one match (or you're already on it)** — a prior run on this issue didn't finish. Check it out instead of creating a new one (`git checkout -b` onto an existing branch name will fail). Then run `git status`; if there's already uncommitted or staged work, read what's already changed before writing anything new, and continue/finish it rather than starting over or discarding it.
+- **More than one match** — the issue title likely changed between two prior attempts, producing two different slugs. Compare their last commits (`git log -1 --format='%H %ci %s' <branch>` for each) and resume the one with the most recent commit; note the other, stale branch(es) in your final summary so a human can clean them up.
 
 ## 3. Claim it
 
