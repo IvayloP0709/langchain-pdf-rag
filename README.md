@@ -376,9 +376,9 @@ and `black` via pre-commit before being accepted.
 
 Larger feature work (e.g. the reranker in `docs/specs/fine-tuned-reranker.md`) is broken into
 GitHub issues with explicit acceptance criteria and native blocking dependencies between them.
-`scripts/ralph.sh` drives Claude Code headlessly and repeatedly — the "Ralph Wiggum" pattern
+`scripts/ralph/ralph.sh` drives Claude Code headlessly and repeatedly — the "Ralph Wiggum" pattern
 (one-shot, non-interactive invocations in a loop, checked against a completion sigil) — inside a
-disposable Docker container (`scripts/ralph.Dockerfile`), so each run:
+disposable Docker container (`scripts/ralph/ralph.Dockerfile`), so each run:
 
 1. Finds the lowest-numbered open, unblocked, unassigned `ready-for-agent` issue via `gh`.
 2. Claims it, implements it, and runs the full test suite/typecheck.
@@ -388,4 +388,4 @@ Authentication uses a long-lived token from `claude setup-token`, tied to an exi
 subscription rather than metered API credits. Running inside a container means a bad iteration's
 blast radius is contained to a disposable filesystem rather than the host, aside from the one
 bind-mounted checkout it's deliberately allowed to change. Full instructions live in
-`scripts/ralph-prompt.md`.
+`scripts/ralph/ralph-prompt.md`.

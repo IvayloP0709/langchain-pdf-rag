@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 # One-line wrapper around the full `docker run` invocation for the Ralph loop.
-# Builds the image if it doesn't exist yet, then runs scripts/ralph.sh inside
-# the container for <max-iterations>.
+# Builds the image if it doesn't exist yet, then runs scripts/ralph/ralph.sh
+# inside the container for <max-iterations>.
 #
-# Usage: scripts/ralph-docker.sh <max-iterations>
+# Usage: scripts/ralph/ralph-docker.sh <max-iterations> [--issue <number>]
 
 set -euo pipefail
 
 if [ -z "${1:-}" ]; then
-  echo "Usage: $0 <max-iterations>"
+  echo "Usage: $0 <max-iterations> [--issue <number>]"
   exit 1
 fi
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-repo_root="$(cd "$script_dir/.." && pwd)"
+repo_root="$(cd "$script_dir/../.." && pwd)"
 
 docker build -f "$script_dir/ralph.Dockerfile" -t ralph-sandbox "$repo_root"
 
@@ -23,4 +23,4 @@ docker run --rm \
   -v "$script_dir/ralph-claude-config.json":/root/.claude.json \
   -w /workspace \
   ralph-sandbox \
-  "$1"
+  "$@"

@@ -27,4 +27,4 @@ Run `gh issue view <number> --comments`.
 
 ## Blocking dependencies
 
-Tickets use GitHub's **native issue dependencies**, not a body-text convention. Set an edge with `gh api --method POST repos/<owner>/<repo>/issues/<child>/dependencies/blocked_by -F issue_id=<blocker-db-id>` (the blocker's numeric **database id** — `gh api repos/<owner>/<repo>/issues/<n> --jq .id`, not the `#number`). Read blockers back with `gh issue view <n> --json blockedBy` — a ticket is unblocked once every listed blocker is closed. This is what `scripts/ralph-prompt.md` checks before claiming a ticket.
+Tickets use GitHub's **native issue dependencies**, not a body-text convention. Set an edge with `gh api --method POST repos/<owner>/<repo>/issues/<child>/dependencies/blocked_by -F issue_id=<blocker-db-id>` (the blocker's numeric **database id** — `gh api repos/<owner>/<repo>/issues/<n> --jq .id`, not the `#number`). Read blockers back with `gh issue view <n> --json blockedBy` — a ticket is unblocked once every listed blocker is closed. This is what `scripts/ralph/ralph-prompt.md` checks before claiming a ticket.

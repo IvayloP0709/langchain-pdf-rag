@@ -75,18 +75,18 @@ If anything fails, do not move on and do not report success — read the actual 
 
 Do **not** merge the PR and do **not** close the issue directly — a human reviews and merges it; the issue closes automatically on merge via the "Closes #<number>" line below.
 
-1. Stage and commit your changes, following this repo's commit conventions: a concise message focused on *why*, ending with the trailer `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`.
+1. Stage with `git add <files>`, then commit with a message focused on *why*, ending with the trailer `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`. **Do not use a heredoc / `$(cat <<EOF ... EOF)` for the message** — this sandbox denies any command containing `$(...)` command substitution outright, with no allowlist override possible, so it will silently fail every time. Instead pass each paragraph as its own `-m` flag, which is git's native way to build a multi-paragraph message without a subshell:
+   ```
+   git commit -m "<title>" -m "<body paragraph>" -m "Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
+   ```
 2. Push the branch: `git push -u origin ralph/<number>-<slug>`
-3. Open the PR, using the structured summary below as the body with `Closes #<number>` appended:
+3. Open the PR, using the structured summary below as the body with `Closes #<number>` appended. **Same rule as above — no heredoc/`$(...)` here either.** Pass `--body` as one literal double-quoted string with real newline characters embedded directly in it (still a single simple command, no subshell):
    ```
    gh pr create --repo IvayloP0709/langchain-pdf-rag \
      --title "<concise, imperative title>" \
-     --body "$(cat <<'EOF'
-   <structured summary, see template below>
+     --body "<structured summary, see template below, with literal newlines>
 
-   Closes #<number>
-   EOF
-   )"
+   Closes #<number>"
    ```
 
 Use this template for both the PR body and stdout, filled in concretely — not a restatement of the issue body:

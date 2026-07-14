@@ -1,9 +1,9 @@
-# Sandbox image for scripts/ralph.sh — runs Claude Code headlessly and
+# Sandbox image for scripts/ralph/ralph.sh — runs Claude Code headlessly and
 # unsupervised, so this container exists to contain the blast radius of a
 # bad autonomous iteration to a disposable filesystem instead of the host.
 #
-# Build:  docker build -f scripts/ralph.Dockerfile -t ralph-sandbox .
-# Run:    see the docker run command in scripts/ralph.sh's comments.
+# Build:  docker build -f scripts/ralph/ralph.Dockerfile -t ralph-sandbox .
+# Run:    see the docker run command in scripts/ralph/ralph-docker.sh.
 
 FROM node:20-slim
 
@@ -39,9 +39,10 @@ RUN npm install -g @anthropic-ai/claude-code
 WORKDIR /workspace
 
 # Copy the whole repo in and install it. At `docker run` time this gets
-# overlaid by a bind mount of your actual working tree (see scripts/ralph.sh),
-# so this COPY is really just to make the image buildable/self-contained —
-# the code Ralph actually edits is the mounted copy, not this one.
+# overlaid by a bind mount of your actual working tree (see
+# scripts/ralph/ralph.sh), so this COPY is really just to make the image
+# buildable/self-contained — the code Ralph actually edits is the mounted
+# copy, not this one.
 COPY . .
 
 # Debian 12's system Python refuses plain `pip install` outside a venv
@@ -49,4 +50,4 @@ COPY . .
 # overrides that. Fine here since the container is disposable anyway.
 RUN pip install --break-system-packages -e ".[dev]"
 
-ENTRYPOINT ["scripts/ralph.sh"]
+ENTRYPOINT ["scripts/ralph/ralph.sh"]
