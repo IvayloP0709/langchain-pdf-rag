@@ -18,6 +18,9 @@ chroma_db/
 data/papers/
 data/eval/runs/
 
+# Trained model artifacts (reproducible via scripts/train_reranker.py)
+models/
+
 # IDE
 .idea/
 .vscode/
