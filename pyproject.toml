@@ -18,6 +18,7 @@ dependencies = [
     "python-dotenv",
     "sqlalchemy",
     "fastapi",
+    "sentence-transformers",
 ]
 
 [project.optional-dependencies]
@@ -29,7 +30,6 @@ dev = [
 ]
 local = [
     "langchain-huggingface",
-    "sentence-transformers",
 ]
 markdown = [
     "unstructured",

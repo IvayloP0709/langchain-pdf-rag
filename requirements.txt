@@ -12,3 +12,4 @@ streamlit
 requests
 fastapi
 uvicorn[standard]
+sentence-transformers

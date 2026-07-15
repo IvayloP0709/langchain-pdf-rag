@@ -28,11 +28,7 @@ def read_before(file_path):
 
 def print_diff(file_path, old, new):
     adds = dels = 0
-    lines = list(
-        difflib.unified_diff(
-            old.splitlines(), new.splitlines(), lineterm="", n=2
-        )
-    )
+    lines = list(difflib.unified_diff(old.splitlines(), new.splitlines(), lineterm="", n=2))
     for line in lines:
         if line.startswith("+++") or line.startswith("---"):
             continue
@@ -107,9 +103,7 @@ def handle_event(event):
             if block.get("type") == "tool_result" and block.get("is_error"):
                 content = block.get("content", "")
                 if isinstance(content, list):
-                    content = " ".join(
-                        c.get("text", "") for c in content if isinstance(c, dict)
-                    )
+                    content = " ".join(c.get("text", "") for c in content if isinstance(c, dict))
                 print(f"{RED}✗ tool error: {str(content)[:300]}{RESET}")
 
     elif etype == "result":
