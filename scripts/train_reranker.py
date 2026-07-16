@@ -5,10 +5,11 @@ Loads the train/val JSONL produced by generate_reranker_training_set.py and fine
 cross-encoder/ms-marco-MiniLM-L-6-v2 via a single sentence_transformers CrossEncoder.fit() call
 across all epochs, using binary (1.0/0.0) relevance labels. A custom evaluator computes
 validation loss - via BCEWithLogitsLoss over the model's raw prediction logits, since fit()'s
-built-in evaluators report accuracy-style scores rather than loss - once per epoch, and
-save_best_model persists whichever epoch's checkpoint had the lowest validation loss. Training
-runs as one fit(epochs=N, ...) call rather than N separate fit(epochs=1) calls so the LR
-schedule and optimizer momentum carry across epochs instead of resetting every epoch.
+built-in evaluators report accuracy-style scores rather than loss - once per epoch, and saves
+whichever epoch's checkpoint had the lowest validation loss (see _ValidationLossEvaluator for
+why it saves the checkpoint itself rather than via fit()'s own save_best_model). Training runs
+as one fit(epochs=N, ...) call rather than N separate fit(epochs=1) calls so the LR schedule and
+optimizer momentum carry across epochs instead of resetting every epoch.
 
 Requires the `training` extra (`pip install -e ".[training]"`) for CrossEncoder.fit()'s
 `datasets`/`accelerate` dependencies, on top of the base sentence-transformers dependency.
@@ -90,15 +91,24 @@ class _ValidationLossEvaluator:
     def __call__(
         self, model: Any, output_path: Optional[str] = None, epoch: int = -1, steps: int = -1
     ) -> Dict[str, float]:
-        val_loss = _compute_val_loss(model, self._val_pairs, self._val_labels)
         # `epoch` arrives as a float (e.g. 1.0) from the trainer's epoch-progress tracking;
         # rounded to an int here since it's only ever used for whole-epoch reporting.
         epoch_num = int(round(epoch))
+        print(
+            f"[epoch {epoch_num}] evaluating on {len(self._val_pairs)} validation examples...",
+            end=" ",
+            flush=True,
+        )
+        val_loss = _compute_val_loss(model, self._val_pairs, self._val_labels)
         self.history.append((epoch_num, val_loss))
-        if val_loss < self.best_val_loss:
+
+        is_best = val_loss < self.best_val_loss
+        if is_best:
             self.best_val_loss = val_loss
             self.best_epoch = epoch_num
             model.save(str(self._output_dir))
+        print(f"val_loss={val_loss:.4f}{' (new best, checkpoint saved)' if is_best else ''}")
+
         return {"val_loss": val_loss}
 
 
@@ -121,10 +131,12 @@ def train_reranker(
     train_examples = load_examples(train_path)
     if not train_examples:
         raise ValueError(f"No training examples found in {train_path}.")
+    print(f"Loaded {len(train_examples)} training examples from {train_path}")
 
     val_examples = load_examples(val_path)
     if not val_examples:
         raise ValueError(f"No validation examples found in {val_path}.")
+    print(f"Loaded {len(val_examples)} validation examples from {val_path}")
 
     import torch
     from sentence_transformers import CrossEncoder, InputExample
@@ -132,7 +144,9 @@ def train_reranker(
 
     torch.manual_seed(seed)
 
+    print(f"Loading base model '{base_model}' (downloads from HuggingFace on first use)...")
     model = CrossEncoder(base_model, num_labels=1)
+    print(f"Model loaded on device: {model.model.device}")
 
     train_dataloader = DataLoader(
         [InputExample(texts=[query, doc], label=label) for query, doc, label in train_examples],
@@ -150,24 +164,29 @@ def train_reranker(
 
     evaluator = _ValidationLossEvaluator(val_pairs, val_labels, output_path)
 
+    print(
+        f"Training for {epochs} epoch(s), batch_size={batch_size}, "
+        f"~{len(train_dataloader)} steps/epoch ({total_steps} steps total), "
+        f"warmup_steps={warmup_steps}"
+    )
     # A single fit() call trains one coherent multi-epoch schedule (LR warmup/decay and
     # optimizer momentum carry across epochs); calling fit(epochs=1) in a loop instead would
     # reset both every epoch. The evaluator saves the best checkpoint itself - see
     # _ValidationLossEvaluator's docstring for why fit()'s own save_best_model doesn't work here.
+    # show_progress_bar=True surfaces the trainer's live step/loss/ETA bar - without it the
+    # process looks hung for however long one epoch takes, with no output at all in between.
     model.fit(
         train_dataloader,
         evaluator=evaluator,
         epochs=epochs,
         warmup_steps=warmup_steps,
         optimizer_params={"lr": learning_rate},
-        show_progress_bar=False,
+        show_progress_bar=True,
     )
 
     if not evaluator.history:
         raise RuntimeError("Training completed without recording any validation evaluation.")
-
-    for epoch_num, val_loss in evaluator.history:
-        print(f"epoch {epoch_num}: val_loss={val_loss:.4f}")
+    print(f"Training complete after {len(evaluator.history)} epoch(s).")
 
     if evaluator.best_epoch == -1 or not any(output_path.iterdir()):
         raise RuntimeError(
