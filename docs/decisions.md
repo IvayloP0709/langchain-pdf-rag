@@ -20,11 +20,11 @@ Running notes on why a particular AWS service, tool, or architectural approach w
 | retrieval_agent mrr | 0.805 | 0.879 | **0.882** |
 | retrieval_agent precision | 0.609 | 0.701 | **0.759** |
 | retrieval_agent page_hit_rate | 0.583 | 0.692 | **0.778** |
-| judge faithfulness | 4.62 | 4.66 | **4.83** |
-| judge relevance | 4.79 | 4.76 | **4.93** |
-| judge correctness | 4.48 | 4.59 | **4.69** |
+| judge faithfulness | 4.55 | 4.66 | **4.83** |
+| judge relevance | 4.76 | 4.76 | **4.93** |
+| judge correctness | 4.41 | 4.59 | **4.69** |
 
-Raw numbers: `data/eval/runs/history.csv`, runs at `2026-07-17T09:38:02` (pretrained) and `2026-07-17T09:41:43` (finetuned), both at commit `8fc5157`.
+Raw numbers: `data/eval/runs/history.csv`, runs at `2026-07-17T09:38:02` (pretrained), `2026-07-17T09:41:43` (finetuned) — both at commit `8fc5157` — and `2026-07-17T10:29:05` (baseline, explicit `RERANKER_MODE=none` run) at commit `6e10567`. The `none` row was run explicitly (rather than reusing the original pre-reranker baseline numbers from before `RERANKER_MODE` existed) so all three configurations are tagged and directly comparable in `history.csv`, per the acceptance criteria for issue #5. Retrieval metrics (hit_rate/MRR/precision/page_hit_rate) reproduced exactly, as expected since retrieval is deterministic; judge scores shifted slightly (LLM-as-judge via `gpt-4o-mini` is not deterministic run-to-run) — the table above uses this explicit `none` run's judge scores rather than the earlier ones for consistency with the other two rows.
 
 **Interpretation:**
 - Adding reranking at all (`none` → `pretrained`) is the larger of the two steps — precision and page_hit_rate improve substantially on both direct and agent retrieval just from a generic, off-the-shelf cross-encoder.
