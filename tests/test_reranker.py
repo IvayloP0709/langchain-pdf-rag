@@ -1,6 +1,7 @@
 import pytest
 
-from src.retrieval.reranker import CrossEncoderReranker, create_reranker
+import src.retrieval.reranker as reranker_module
+from src.retrieval.reranker import PRETRAINED_MODEL_NAME, CrossEncoderReranker, create_reranker
 
 
 class FakeDoc:
@@ -55,9 +56,65 @@ def test_create_reranker_none_mode_returns_none():
     assert create_reranker("none") is None
 
 
-def test_create_reranker_finetuned_mode_raises_not_implemented():
-    with pytest.raises(NotImplementedError):
-        create_reranker("finetuned")
+def test_create_reranker_pretrained_mode_loads_expected_model_name(monkeypatch):
+    captured = {}
+
+    def fake_load(model_name_or_path):
+        captured["path"] = model_name_or_path
+        return StubScoringModel({})
+
+    monkeypatch.setattr(reranker_module, "_load_cross_encoder", fake_load)
+
+    result = create_reranker("pretrained")
+
+    assert isinstance(result, CrossEncoderReranker)
+    assert captured["path"] == PRETRAINED_MODEL_NAME
+
+
+def test_create_reranker_finetuned_mode_loads_default_path(monkeypatch):
+    monkeypatch.delenv("RERANKER_MODEL_PATH", raising=False)
+    captured = {}
+
+    def fake_load(model_name_or_path):
+        captured["path"] = model_name_or_path
+        return StubScoringModel({})
+
+    monkeypatch.setattr(reranker_module, "_load_cross_encoder", fake_load)
+
+    result = create_reranker("finetuned")
+
+    assert isinstance(result, CrossEncoderReranker)
+    assert captured["path"] == "models/reranker/finetuned"
+
+
+def test_create_reranker_finetuned_mode_respects_env_var(monkeypatch):
+    monkeypatch.setenv("RERANKER_MODEL_PATH", "/custom/checkpoint")
+    captured = {}
+
+    def fake_load(model_name_or_path):
+        captured["path"] = model_name_or_path
+        return StubScoringModel({})
+
+    monkeypatch.setattr(reranker_module, "_load_cross_encoder", fake_load)
+
+    create_reranker("finetuned")
+
+    assert captured["path"] == "/custom/checkpoint"
+
+
+def test_create_reranker_finetuned_mode_explicit_model_path_wins_over_env_var(monkeypatch):
+    monkeypatch.setenv("RERANKER_MODEL_PATH", "/env/checkpoint")
+    captured = {}
+
+    def fake_load(model_name_or_path):
+        captured["path"] = model_name_or_path
+        return StubScoringModel({})
+
+    monkeypatch.setattr(reranker_module, "_load_cross_encoder", fake_load)
+
+    create_reranker("finetuned", model_path="/explicit/checkpoint")
+
+    assert captured["path"] == "/explicit/checkpoint"
 
 
 def test_create_reranker_invalid_mode_raises_value_error():

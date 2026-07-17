@@ -1,8 +1,10 @@
+import os
 from typing import Any, List, Optional, Protocol
 
 from langchain_core.documents import Document
 
 PRETRAINED_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+DEFAULT_FINETUNED_MODEL_PATH = "models/reranker/finetuned"
 
 
 class Reranker(Protocol):
@@ -40,7 +42,9 @@ def create_reranker(mode: str, model_path: Optional[str] = None) -> Optional[Rer
 
     Args:
         mode: none / pretrained / finetuned
-        model_path: local checkpoint path; only consulted for mode="finetuned"
+        model_path: local checkpoint path; only consulted for mode="finetuned".
+            Defaults to the RERANKER_MODEL_PATH env var, falling back to
+            DEFAULT_FINETUNED_MODEL_PATH.
 
     Returns:
         None for mode="none", otherwise a Reranker instance.
@@ -50,8 +54,6 @@ def create_reranker(mode: str, model_path: Optional[str] = None) -> Optional[Rer
     if mode == "pretrained":
         return CrossEncoderReranker(_load_cross_encoder(PRETRAINED_MODEL_NAME))
     if mode == "finetuned":
-        raise NotImplementedError(
-            "reranker_mode='finetuned' is not implemented yet; "
-            "see https://github.com/IvayloP0709/langchain-pdf-rag/issues/4."
-        )
+        path = model_path or os.getenv("RERANKER_MODEL_PATH", DEFAULT_FINETUNED_MODEL_PATH)
+        return CrossEncoderReranker(_load_cross_encoder(path))
     raise ValueError(f"Unknown reranker_mode: {mode!r}")

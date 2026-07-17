@@ -37,6 +37,10 @@ markdown = [
 tools = [
     "certifi",
 ]
+training = [
+    "datasets",
+    "accelerate",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -62,3 +66,6 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-q"
 pythonpath = ["."]
+markers = [
+    "slow: exercises a real model download/training run, not mocked",
+]
