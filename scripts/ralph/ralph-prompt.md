@@ -73,7 +73,18 @@ After each criterion, and again at the end, run:
 
 If anything fails, do not move on and do not report success — read the actual failure output, fix the specific cause, and rerun. Repeat this diagnose-fix-rerun cycle until the run is clean. If the same failure persists after 3 fix attempts, stop implementing further criteria, leave the failing state as-is, and report the exact failure and what you tried in your final summary rather than silently working around it (e.g. by deleting or weakening a test).
 
-## 7. Commit, push, and open a PR
+## 7. Independent review before committing
+
+Before staging anything, get a second, independent pass on your own work. The point is to catch what's invisible to you specifically because you just wrote it and have context and investment in your own approach — the same reason a human author shouldn't be the only reviewer of their own PR.
+
+1. Capture the full diff for this issue: `git diff main...HEAD` (plus `git diff HEAD` if anything is still uncommitted).
+2. Launch exactly one fresh agent via the Agent tool — a new agent, not a fork, so it shares none of your conversation context — with a prompt containing: the diff, the issue's acceptance criteria, and this instruction: "Review this diff for correctness bugs (wrong conditions, off-by-one, missing error handling, edge cases the tests don't cover) and for removed or weakened behavior (a guard, validation, or test case that existed before and is now gone or narrowed). Report each finding as file/line/summary/concrete failure scenario. If nothing is wrong, say so explicitly."
+3. For each finding it returns: fix it, or decide it's a false positive / genuinely out of scope for this issue and say why in your final summary — don't silently drop a finding either way.
+4. If you make any fix as a result, rerun the full feedback loop (step 6) before moving on — a fix is unverified until it's been tested.
+
+This is a lighter, single-pass version of `/code-review`, proportionate to one autonomous run — not a substitute for the human review the PR still gets in step 8.
+
+## 8. Commit, push, and open a PR
 
 Do **not** merge the PR and do **not** close the issue directly — a human reviews and merges it; the issue closes automatically on merge via the "Closes #<number>" line below.
 
@@ -124,6 +135,6 @@ Use this template for both the PR body and stdout, filled in concretely — not 
 <anything you're unsure about, anything out-of-scope you noticed but didn't fix, any assumption you made that the issue didn't specify>
 ```
 
-## 8. Stop
+## 9. Stop
 
 Do not start a second issue in this invocation, even if one is now unblocked — the branch/PR you just opened must be reviewable as a single, scoped unit. One issue's implementation per run. No merge and no issue-close without a human doing it; that only happens when a human merges the PR.
