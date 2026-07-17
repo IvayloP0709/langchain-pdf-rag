@@ -1,5 +1,6 @@
 import csv
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
@@ -18,14 +19,38 @@ def _flatten(d: Dict[str, Any], parent_key: str = "", sep: str = ".") -> Dict[st
 
 def _append_history(history_path: Path, flat_summary: Dict[str, Any]) -> None:
     history_path.parent.mkdir(parents=True, exist_ok=True)
-    file_exists = history_path.exists()
-    fieldnames = list(flat_summary.keys())
 
-    with history_path.open("a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        if not file_exists:
+    if not history_path.exists():
+        with history_path.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=list(flat_summary.keys()))
             writer.writeheader()
+            writer.writerow(flat_summary)
+        return
+
+    with history_path.open(newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        existing_fieldnames = list(reader.fieldnames or [])
+        existing_rows = list(reader)
+
+    merged_fieldnames = list(existing_fieldnames)
+    for key in flat_summary:
+        if key not in merged_fieldnames:
+            merged_fieldnames.append(key)
+
+    if merged_fieldnames == existing_fieldnames:
+        with history_path.open("a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=merged_fieldnames)
+            writer.writerow(flat_summary)
+        return
+
+    tmp_path = history_path.with_suffix(history_path.suffix + ".tmp")
+    with tmp_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=merged_fieldnames)
+        writer.writeheader()
+        for row in existing_rows:
+            writer.writerow(row)
         writer.writerow(flat_summary)
+    os.replace(tmp_path, history_path)
 
 
 def _print_summary(summary: Dict[str, Any]) -> None:
