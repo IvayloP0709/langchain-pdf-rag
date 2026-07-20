@@ -12,9 +12,3 @@ repos:
         entry: python -m ruff format .
         language: system
         pass_filenames: false
-
-      - id: black
-        name: black
-        entry: python -m black .
-        language: system
-        pass_filenames: false

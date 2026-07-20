@@ -24,7 +24,6 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest",
-    "black",
     "ruff",
     "httpx",
 ]
@@ -49,10 +48,6 @@ include = ["src*"]
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.md"]
 
-[tool.black]
-line-length = 100
-target-version = ["py38"]
-
 [tool.ruff]
 line-length = 100
 target-version = "py38"
@@ -60,6 +55,8 @@ target-version = "py38"
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
 ignore = []
+
+[tool.ruff.format]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -20,8 +20,8 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev,training]"
 
-      - name: Check formatting (black)
-        run: black --check .
+      - name: Check formatting (ruff)
+        run: ruff format --check .
 
       - name: Lint (ruff)
         run: ruff check .

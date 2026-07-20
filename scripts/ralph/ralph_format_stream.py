@@ -5,6 +5,7 @@ scripts/ralph/ralph.sh no longer sits silent until the whole run finishes.
 
 Usage: claude ... --output-format stream-json | python3 -u ralph_format_stream.py
 """
+
 import difflib
 import json
 import sys
