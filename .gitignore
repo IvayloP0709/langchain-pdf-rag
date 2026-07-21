@@ -39,6 +39,7 @@ htmlcov/
 
 # internal planning notes, not part of the public project
 portfolio-plan/
+docs/ticket-order.md
 
 # claude md
 CLAUDE.md
