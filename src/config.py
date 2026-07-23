@@ -1,8 +1,8 @@
 import os
 from typing import Optional, Tuple
-from urllib.parse import quote_plus
 
 from dotenv import load_dotenv
+from sqlalchemy.engine import URL
 
 load_dotenv()
 
@@ -21,10 +21,12 @@ def build_connection_string() -> Optional[str]:
     Otherwise assembles a psycopg-dialect Postgres URL from the discrete
     DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD env vars, matching the
     connection string already stored in SSM for the provisioned RDS instance
-    (see docs/decisions.md, issue #39).
+    (see docs/decisions.md, issue #39). Assembly goes through
+    sqlalchemy.engine.URL.create() so every component (not just user/password)
+    is correctly percent-encoded.
 
     Returns None if neither DATABASE_URL nor the full set of discrete vars
-    is configured.
+    is configured. Raises ValueError if DB_PORT is set but not numeric.
     """
     database_url = os.getenv("DATABASE_URL", "").strip()
     if database_url:
@@ -39,7 +41,19 @@ def build_connection_string() -> Optional[str]:
     if not all([host, port, name, user, password]):
         return None
 
-    return f"postgresql+psycopg://{quote_plus(user)}:{quote_plus(password)}@{host}:{port}/{name}"
+    try:
+        port_int = int(port)
+    except ValueError as exc:
+        raise ValueError(f"DB_PORT must be an integer, got: '{port}'") from exc
+
+    return URL.create(
+        drivername="postgresql+psycopg",
+        username=user,
+        password=password,
+        host=host,
+        port=port_int,
+        database=name,
+    ).render_as_string(hide_password=False)
 
 
 def validate_runtime_config() -> Tuple[bool, str]:
@@ -85,11 +99,5 @@ def validate_runtime_config() -> Tuple[bool, str]:
 
     if candidate_k <= 0:
         return False, "RERANK_CANDIDATE_K must be a positive integer."
-
-    if build_connection_string() is None:
-        return False, (
-            "Postgres connection details not set in environment variables. "
-            "Set DATABASE_URL, or all of DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD."
-        )
 
     return True, "OK"

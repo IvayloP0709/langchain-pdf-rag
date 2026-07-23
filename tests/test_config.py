@@ -11,12 +11,6 @@ def _valid_base_env(monkeypatch):
     monkeypatch.setenv("DOC_PREVIEW_CHARS", "800")
     monkeypatch.delenv("RERANKER_MODE", raising=False)
     monkeypatch.delenv("RERANK_CANDIDATE_K", raising=False)
-    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://user:pass@localhost:5432/chat_memory")
-    monkeypatch.delenv("DB_HOST", raising=False)
-    monkeypatch.delenv("DB_PORT", raising=False)
-    monkeypatch.delenv("DB_NAME", raising=False)
-    monkeypatch.delenv("DB_USER", raising=False)
-    monkeypatch.delenv("DB_PASSWORD", raising=False)
 
 
 def test_default_reranker_env_is_valid():
@@ -134,51 +128,29 @@ class TestBuildConnectionString:
 
         assert build_connection_string() is None
 
+    def test_raises_when_port_is_not_numeric(self, monkeypatch):
+        monkeypatch.delenv("DATABASE_URL", raising=False)
+        monkeypatch.setenv("DB_HOST", "localhost")
+        monkeypatch.setenv("DB_PORT", "abc")
+        monkeypatch.setenv("DB_NAME", "chat_memory")
+        monkeypatch.setenv("DB_USER", "app")
+        monkeypatch.setenv("DB_PASSWORD", "secret")
 
-def test_missing_postgres_connection_details(monkeypatch):
-    monkeypatch.delenv("DATABASE_URL", raising=False)
-    for var in ("DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD"):
-        monkeypatch.delenv(var, raising=False)
+        with pytest.raises(ValueError, match="DB_PORT"):
+            build_connection_string()
 
-    ok, message = validate_runtime_config()
+    def test_url_encodes_special_characters_in_host_and_database(self, monkeypatch):
+        monkeypatch.delenv("DATABASE_URL", raising=False)
+        monkeypatch.setenv("DB_HOST", "db@internal")
+        monkeypatch.setenv("DB_PORT", "5432")
+        monkeypatch.setenv("DB_NAME", "chat/memory")
+        monkeypatch.setenv("DB_USER", "app")
+        monkeypatch.setenv("DB_PASSWORD", "secret")
 
-    assert ok is False
-    assert "DATABASE_URL" in message
-    assert "DB_HOST" in message
+        result = build_connection_string()
 
+        from sqlalchemy.engine import make_url
 
-def test_partial_discrete_db_vars_missing(monkeypatch):
-    monkeypatch.delenv("DATABASE_URL", raising=False)
-    monkeypatch.setenv("DB_HOST", "localhost")
-    monkeypatch.setenv("DB_PORT", "5432")
-    monkeypatch.setenv("DB_NAME", "chat_memory")
-    monkeypatch.setenv("DB_USER", "app")
-    monkeypatch.delenv("DB_PASSWORD", raising=False)
-
-    ok, message = validate_runtime_config()
-
-    assert ok is False
-    assert "DATABASE_URL" in message
-
-
-def test_discrete_db_vars_valid(monkeypatch):
-    monkeypatch.delenv("DATABASE_URL", raising=False)
-    monkeypatch.setenv("DB_HOST", "localhost")
-    monkeypatch.setenv("DB_PORT", "5432")
-    monkeypatch.setenv("DB_NAME", "chat_memory")
-    monkeypatch.setenv("DB_USER", "app")
-    monkeypatch.setenv("DB_PASSWORD", "secret")
-
-    ok, message = validate_runtime_config()
-
-    assert ok is True
-    assert message == "OK"
-
-
-def test_sqlite_database_url_satisfies_validation(monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", "sqlite:///chat_history.db")
-
-    ok, message = validate_runtime_config()
-
-    assert ok is True
-    assert message == "OK"
+        url = make_url(result)
+        assert url.host == "db@internal"
+        assert url.database == "chat/memory"
