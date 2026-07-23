@@ -55,3 +55,29 @@ All four of issue #39's acceptance criteria confirmed: instance running (smalles
 - Issue #35 (connection-string builder) needs to read from `/langchain-rag/prod/db/*` at deploy time and from `.env`'s `DATABASE_URL`-shaped value locally — same shape, different source, per the spec's story #9.
 - The placeholder `langchain-rag-ecs-backend-sg` needs to actually be attached to the ECS service when issues #57-59 land, or the RDS ingress rule references a security group nothing is ever a member of and the backend can't reach the database.
 - The IAM identity used to run these scripts (`langchain-rag-cli`) currently has `AmazonEC2FullAccess`/`AmazonRDSFullAccess`/`AmazonSSMFullAccess` attached — broader than any single script strictly needs, a deliberate temporary tradeoff deferred to the Phase 5 Terraform retrofit, which is the natural place to scope these down to least-privilege custom policies.
+
+## 2026-07-23 — Qdrant Cloud provisioning: vector size/metric + local-dev connectivity (issue #41)
+
+**Decision:** Provision a Qdrant Cloud free-tier cluster (1 node, region closest to `eu-central-1`) for the vectorstore migration, via `scripts/provision_qdrant_cloud.sh` / `docs/runbooks/qdrant-cloud-provisioning.md` — same manual-runbook pattern as the RDS instance in #39, since (a) it's a real cloud resource and CLAUDE.md requires asking first before an agent provisions one, and (b) unlike RDS, Qdrant Cloud's free tier has no creation API at all — the cluster itself can only be created by hand through the console, so this ticket is *more* manual than #39, not less.
+
+**Vector size / distance metric (for issue #42's collection creation):** 1536 dimensions, **Cosine** distance. The active embedding model is `text-embedding-3-small` (`EMBEDDING_PROVIDER=openai` is the default in `src/config.py`), which OpenAI documents as producing 1536-dim vectors normalized to unit length — Cosine is the correct metric for a normalized embedding space (equivalent to dot product here, but Cosine is `langchain_qdrant`'s default and the more explicit choice). If `EMBEDDING_PROVIDER=local` (`sentence-transformers/all-MiniLM-L6-v2`) is ever used instead, note the collection would need to be *re-created* at 384 dimensions — Qdrant collections are fixed to one vector size, they can't mix or be resized in place.
+
+**Local-dev connectivity: local Qdrant Docker container, not the cloud cluster directly.** Local dev and the deployed (ECS) environment both configure via the same `QDRANT_URL`/`QDRANT_API_KEY`/`QDRANT_COLLECTION` shape, but with different values:
+- Local: `QDRANT_URL=http://localhost:6333` against `docker run -p 6333:6333 qdrant/qdrant`, API key unused (the open-source container has no auth by default).
+- Deployed: the free-tier cloud cluster's URL + API key, read from SSM (`/langchain-rag/prod/qdrant/{url,api_key}`) at task startup.
+
+Reasons for not pointing local dev at the cloud cluster directly: (1) every retrieval call during iteration (re-ingesting while tuning chunking/reranking) would be a network round trip instead of a loopback call; (2) the free tier auto-suspends after a week of inactivity and is deleted after four — a bad fit for something hit sporadically during dev sessions between other tickets; (3) keeps local experimentation from touching the same collection state that eval runs / CI might depend on. The tradeoff is one more thing to run locally (`docker run ...`) and a theoretical dev/prod parity gap (different Qdrant versions) — acceptable here since the integration point (`src/retrieval/vectorstore.py`, issue #42) is the same LangChain client either way, so behavior differences would show up in that ticket's tests regardless of which environment ran them.
+
+**SSM path convention:** `/langchain-rag/prod/qdrant/{url,api_key}`, extending the `/langchain-rag/prod/<component>/<key>` convention started in #39.
+
+**Result — verified 2026-07-23:**
+```
+aws ssm get-parameters-by-path --path /langchain-rag/prod/qdrant → 2 SecureString parameters (api_key, url)
+cluster endpoint → https://96433fae-ddb4-4670-9ba7-9a6ae3c8a306.eu-central-1-0.aws.cloud.qdrant.io
+```
+The free-tier region offered landed on AWS `eu-central-1` itself (Frankfurt) rather than merely "closest to" it — better than the fallback assumed above, no latency compromise for the ECS backend. All four of issue #41's acceptance criteria confirmed: cluster created via console (status Healthy at creation), API key generated and stored in SSM as SecureString, vector size/distance metric decision recorded above for #42, local-dev connectivity approach (local Docker container) decided and recorded above.
+
+**Interpretation / gotchas for later tickets:**
+- Issue #42 (vectorstore seam swap) reads `/langchain-rag/prod/qdrant/{url,api_key}` from SSM at deploy time and `QDRANT_URL=http://localhost:6333` from `.env` locally — same shape as the RDS/#35 pattern.
+- The provisioning script (`scripts/provision_qdrant_cloud.sh`) sources `QDRANT_CLOUD_URL`/`QDRANT_CLOUD_API_KEY` from a local `.env` rather than prompting interactively, to make paste-once-and-run easier; those two vars are provisioning-only and should be deleted from `.env` now that the run is done — they're not read by the app.
+- Collection itself (`rag_documents`, 1536-dim, Cosine) does not exist yet — the free-tier cluster is empty until #42 creates it idempotently on first `ingest`.
