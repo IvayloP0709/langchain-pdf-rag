@@ -8,6 +8,7 @@ chromadb
 pypdf
 python-dotenv
 sqlalchemy
+psycopg[binary]  # Postgres driver (v3); matches the postgresql+psycopg:// URLs already issued in SSM for RDS (issue #39)
 streamlit
 requests
 fastapi

@@ -17,6 +17,7 @@ dependencies = [
     "pypdf",
     "python-dotenv",
     "sqlalchemy",
+    "psycopg[binary]",
     "fastapi",
     "sentence-transformers",
 ]
