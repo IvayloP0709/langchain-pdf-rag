@@ -348,6 +348,9 @@ smoke test:
 docker run --rm -d --name alembic-smoke-test \
   -e POSTGRES_PASSWORD=postgres -p 5433:5432 postgres:16
 
+# Postgres takes a few seconds to accept connections after the container starts
+until docker exec alembic-smoke-test pg_isready -U postgres -q; do sleep 1; done
+
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5433/postgres \
   alembic upgrade head
 

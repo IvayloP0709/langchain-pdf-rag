@@ -14,17 +14,22 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Build the DB URL from the same helper src/agent/memory.py uses (DATABASE_URL,
-# or the discrete DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD vars), rather than
-# reading alembic.ini's sqlalchemy.url or env vars directly here — there must be
-# exactly one place connection details are assembled.
+# Build the DB URL from the same helper src/agent/memory.py is intended to be
+# wired to (DATABASE_URL, or the discrete DB_HOST/DB_PORT/DB_NAME/DB_USER/
+# DB_PASSWORD vars), rather than reading alembic.ini's sqlalchemy.url or env
+# vars directly here — there must be exactly one place connection details are
+# assembled.
 db_url = build_connection_string()
 if db_url is None:
     raise RuntimeError(
         "No database connection configured. Set DATABASE_URL, or all of "
         "DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD, before running alembic."
     )
-config.set_main_option("sqlalchemy.url", db_url)
+# set_main_option goes through configparser, which treats "%" as interpolation
+# syntax — and build_connection_string() percent-encodes special characters in
+# credentials, so a raw URL can crash with "invalid interpolation syntax".
+# Alembic's documented contract is to escape "%" as "%%" here.
+config.set_main_option("sqlalchemy.url", db_url.replace("%", "%%"))
 
 # No ORM models yet — SQLChatMessageHistory manages its own table, and no new
 # schema is designed here (see alembic/versions/ for the first, no-op revision).
