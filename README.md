@@ -325,6 +325,41 @@ pytest -q
 
 Current test coverage includes persistent memory behavior in `tests/test_memory.py`.
 
+## Migrations (Alembic)
+
+Alembic scaffolding (`alembic.ini`, `alembic/env.py`, `alembic/versions/`) is set up ahead of
+any schema it needs to own — `SQLChatMessageHistory` (`src/agent/memory.py`) already manages its
+own `message_store` table automatically, so the first migration is a no-op that just documents
+that table's shape (`alembic/versions/bf40fc10c929_*.py`). This establishes the migrations
+workflow now, so the next real schema need (session metadata, document metadata) has it ready
+rather than retrofitting it under time pressure. See issue #36.
+
+`alembic/env.py` builds its connection string via `build_connection_string()`
+(`src/config.py`, added in #35) — `DATABASE_URL`, or the discrete
+`DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD` vars — the same helper `src/agent/memory.py`
+is intended to be wired to (a separate, still-pending ticket), so there's exactly one place
+connection details are assembled rather than two. `alembic.ini`'s `sqlalchemy.url` is deliberately
+left unset.
+
+Not part of the default `pytest` run (needs a live Postgres), runnable on demand as a manual
+smoke test:
+
+```bash
+docker run --rm -d --name alembic-smoke-test \
+  -e POSTGRES_PASSWORD=postgres -p 5433:5432 postgres:16
+
+# Postgres takes a few seconds to accept connections after the container starts
+until docker exec alembic-smoke-test pg_isready -U postgres -q; do sleep 1; done
+
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5433/postgres \
+  alembic upgrade head
+
+# expect: "Running upgrade -> bf40fc10c929, document sql chat message history table"
+# with no errors, and no `message_store` table created (the migration is a no-op).
+
+docker stop alembic-smoke-test
+```
+
 ## Troubleshooting
 
 ### Error: Vectorstore not found

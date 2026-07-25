@@ -18,6 +18,7 @@ dependencies = [
     "python-dotenv",
     "sqlalchemy",
     "psycopg[binary]",
+    "alembic",
     "fastapi",
     "sentence-transformers",
 ]
@@ -56,6 +57,11 @@ target-version = "py38"
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
 ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+# Alembic's generated migration template always imports `op`/`sa` for
+# revisions to use; a no-op migration (like the first one) doesn't use them.
+"alembic/versions/*.py" = ["F401"]
 
 [tool.ruff.format]
 

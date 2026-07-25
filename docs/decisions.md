@@ -81,3 +81,46 @@ The free-tier region offered landed on AWS `eu-central-1` itself (Frankfurt) rat
 - Issue #42 (vectorstore seam swap) reads `/langchain-rag/prod/qdrant/{url,api_key}` from SSM at deploy time and `QDRANT_URL=http://localhost:6333` from `.env` locally — same shape as the RDS/#35 pattern.
 - The provisioning script (`scripts/provision_qdrant_cloud.sh`) sources `QDRANT_CLOUD_URL`/`QDRANT_CLOUD_API_KEY` from a local `.env` rather than prompting interactively, to make paste-once-and-run easier; those two vars are provisioning-only and should be deleted from `.env` now that the run is done — they're not read by the app.
 - Collection itself (`rag_documents`, 1536-dim, Cosine) does not exist yet — the free-tier cluster is empty until #42 creates it idempotently on first `ingest`.
+
+## 2026-07-25 — Alembic scaffolding wired to the shared connection-string builder (issue #36)
+
+**Decision:** Introduce Alembic (`alembic.ini`, `alembic/env.py`, `alembic/versions/`) now, even
+though `SQLChatMessageHistory` (`src/agent/memory.py`) already manages its own `message_store`
+table automatically and no new schema is designed in this ticket. Per the parent spec
+(`docs/specs/postgres-chat-memory-migration.md`, story #7), this establishes the migrations
+workflow before the next real schema need (session metadata, document metadata) arrives, rather
+than retrofitting it later under time pressure.
+
+**`env.py` wiring:** builds its connection string by importing and calling the
+`build_connection_string()` helper (`src/config.py`, added in #35) — the same helper
+`src/agent/memory.py` is intended to be wired to for its own Postgres migration (a separate,
+still-pending ticket; `memory.py`'s `get_chat_history` still defaults to hardcoded
+`sqlite:///chat_history.db` as of this ticket) — instead of reading `DATABASE_URL`/`DB_*` env
+vars or `alembic.ini`'s `sqlalchemy.url` directly. This keeps exactly one place connection
+details are assembled once both wirings land. `alembic.ini`'s
+`sqlalchemy.url` line is left commented out for this reason; `env.py` calls
+`config.set_main_option("sqlalchemy.url", ...)` at import time instead, and raises a
+`RuntimeError` immediately if `build_connection_string()` returns `None` (same fail-fast spirit
+as `validate_runtime_config()`), rather than letting Alembic fail later with an opaque
+SQLAlchemy error.
+
+**First migration** (`alembic/versions/bf40fc10c929_document_sql_chat_message_history_table.py`):
+a no-op — both `upgrade()` and `downgrade()` are `pass`. Its docstring documents
+`message_store`'s existing shape (`id INTEGER PRIMARY KEY`, `session_id TEXT`, `message TEXT`
+holding JSON-serialized messages, per
+`langchain_community.chat_message_histories.sql.create_message_model`) so the table's shape is
+on record without Alembic taking ownership of a table it doesn't create. `target_metadata` stays
+`None` until real ORM models exist for `autogenerate` to diff against.
+
+**Verification:** `alembic upgrade head` run against a throwaway local Postgres (`docker run
+postgres:16`) applies cleanly to a single revision, `bf40fc10c929`, with no schema changes made
+(confirmed no `message_store` table appears — it stays absent until `SQLChatMessageHistory`
+creates it lazily on first real use). Documented as a runnable-on-demand manual smoke test in the
+README's "Migrations (Alembic)" section rather than part of the default `pytest` run, since it
+needs a live Postgres instance — same reasoning as the `slow` marker convention used elsewhere in
+the test suite.
+
+**Out of scope, per the parent spec:** no session/document metadata schema designed here; RDS
+Terraform (Phase 5); the `SQLChatMessageHistory` connection string itself still defaults to
+`sqlite:///chat_history.db` in `src/agent/memory.py` — wiring that default to
+`build_connection_string()` is the parent spec's story #1, a separate ticket from this one.
